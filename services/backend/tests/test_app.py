@@ -78,6 +78,17 @@ def test_health_reports_ok():
     assert response.json()["status"] == "ok"
 
 
+def test_launcher_page_points_to_extension_and_onshape():
+    client = TestClient(app)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "apps/extension/.output/chrome-mv3" in response.text
+    assert "https://cad.onshape.com/documents" in response.text
+
+
 def test_command_wraps_in_versioned_envelope():
     client = TestClient(app)
 
