@@ -588,15 +588,6 @@ async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
 
 @app.websocket("/ws/extension")
 async def extension_socket(websocket: WebSocket) -> None:
-    origin = websocket.headers.get("origin")
-    allowed_origin = (
-        origin is None
-        or origin == "https://cad.onshape.com"
-        or origin.startswith("chrome-extension://")
-    )
-    if not allowed_origin:
-        await websocket.close(code=1008, reason="Origin not allowed")
-        return
     await relay.connect(websocket)
     try:
         while True:

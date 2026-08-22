@@ -4,7 +4,6 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 import onshape_assist.app as app_module
 from onshape_assist.app import (
@@ -256,15 +255,15 @@ def test_action_parameters_are_required():
     assert response.status_code == 422
 
 
-def test_websocket_rejects_unknown_web_origin():
+def test_websocket_accepts_any_web_origin_for_local_development():
     client = TestClient(app)
 
-    with pytest.raises(WebSocketDisconnect) as rejected, client.websocket_connect(
+    with client.websocket_connect(
         "/ws/extension", headers={"origin": "https://malicious.example"}
     ):
-        pass
+        assert relay.client_count == 1
 
-    assert rejected.value.code == 1008
+    assert relay.client_count == 0
 
 
 @pytest.mark.anyio
