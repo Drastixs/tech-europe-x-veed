@@ -1,0 +1,10 @@
+{
+  "video_url": "https://www.youtube.com/watch?v=wSBLOhIFz6s",
+  "application": "Onshape",
+  "analysis_scope": {
+    "start_ms": 259000,
+    "end_ms": 273000
+  },
+  "coordinate_system": "normalized_0_to_1000",
+  "output_language": "en"
+}
