@@ -9,6 +9,13 @@ from fastapi.testclient import TestClient
 
 import onshape_assist.app as app_module
 from onshape_assist.app import TutorialPlan, app, relay
+from onshape_assist.narration import (
+    FalNarrationService,
+    NarrationConfigurationError,
+    NarrationProviderError,
+    NarrationSettings,
+    enrich_plan_narration,
+)
 from onshape_assist.planner import OpenAIPlanner, PlannerError
 
 
@@ -182,7 +189,11 @@ def test_openai_planner_rejects_incomplete_and_refusal_responses(body: dict, exp
 
 def test_plan_endpoint_generates_enriches_and_relays(monkeypatch):
     generated = planned_tutorial()
+    generated["steps"][0]["narration"]["concise"]["fal_elevenlabs_audio_url"] = (
+        "https://model.invalid/hallucinated.mp3"
+    )
     enriched_calls: list[TutorialPlan] = []
+    enrichment_inputs: list[str] = []
 
     class FakePlanner:
         async def generate(self, *, input_payload: dict, schema: dict) -> dict:
@@ -193,6 +204,7 @@ def test_plan_endpoint_generates_enriches_and_relays(monkeypatch):
 
     async def enrich(plan: TutorialPlan) -> TutorialPlan:
         enriched_calls.append(plan)
+        enrichment_inputs.append(plan.steps[0].narration.concise.fal_elevenlabs_audio_url)
         plan.steps[0].narration.concise.fal_elevenlabs_audio_url = "https://audio.test/concise.mp3"
         plan.steps[0].narration.concise.duration_ms = 1500
         return plan
@@ -219,6 +231,102 @@ def test_plan_endpoint_generates_enriches_and_relays(monkeypatch):
     assert plan["voice"]["voice_id"] == "requested-voice"
     assert plan["steps"][0]["narration"]["concise"]["duration_ms"] == 1500
     assert len(enriched_calls) == 1
+    assert enrichment_inputs == ["pending://tts/open-revolve/concise"]
+
+
+def test_full_planner_tts_websocket_pipeline(monkeypatch, tmp_path):
+    openai_calls = 0
+    fal_calls = 0
+
+    def openai_handler(_: httpx.Request) -> httpx.Response:
+        nonlocal openai_calls
+        openai_calls += 1
+        return httpx.Response(
+            200,
+            json={"status": "completed", "output_text": json.dumps(planned_tutorial())},
+        )
+
+    def fal_handler(_: httpx.Request) -> httpx.Response:
+        nonlocal fal_calls
+        fal_calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "audio": {"url": f"https://fal.media/narration-{fal_calls}.mp3"},
+                "duration_seconds": float(fal_calls),
+            },
+        )
+
+    openai_client = httpx.AsyncClient(transport=httpx.MockTransport(openai_handler))
+    fal_client = httpx.AsyncClient(transport=httpx.MockTransport(fal_handler))
+    planner = OpenAIPlanner(api_key="openai-secret", client=openai_client)
+    narration_service = FalNarrationService(
+        NarrationSettings(
+            api_key="fal-secret",
+            endpoint="https://fal.test/elevenlabs",
+            cache_dir=tmp_path,
+            timeout_seconds=3,
+        ),
+        http_client=fal_client,
+    )
+
+    async def enrich(plan: TutorialPlan) -> TutorialPlan:
+        return await enrich_plan_narration(plan, narration_service)
+
+    monkeypatch.setattr(app_module, "planner_factory", lambda: planner)
+    monkeypatch.setattr(app_module, "narration_enricher", enrich)
+    relay.last_envelope = None
+
+    with (
+        TestClient(app) as client,
+        client.websocket_connect(
+            "/ws/extension", headers={"origin": "https://cad.onshape.com"}
+        ) as websocket,
+    ):
+        response = client.post("/tutorials/plan", json=planning_request())
+        relayed = websocket.receive_json()
+
+    asyncio.run(openai_client.aclose())
+    asyncio.run(fal_client.aclose())
+
+    assert response.status_code == 200
+    assert relayed == response.json()
+    narration = relayed["command"]["plan"]["steps"][0]["narration"]
+    assert narration["concise"] == {
+        "text": "Let's open Revolve.",
+        "fal_elevenlabs_audio_url": "https://fal.media/narration-1.mp3",
+        "duration_ms": 1000,
+    }
+    assert narration["detailed"]["fal_elevenlabs_audio_url"].startswith(
+        "https://fal.media/"
+    )
+    assert openai_calls == 1
+    assert fal_calls == 2
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (NarrationConfigurationError("FAL_KEY is required"), 503),
+        (NarrationProviderError("fal ElevenLabs returned HTTP 503"), 502),
+    ],
+)
+def test_plan_endpoint_maps_narration_failures(monkeypatch, error, expected_status):
+    class FakePlanner:
+        async def generate(self, **_: object) -> dict:
+            return planned_tutorial()
+
+    async def fail(_: TutorialPlan) -> TutorialPlan:
+        raise error
+
+    monkeypatch.setattr(app_module, "planner_factory", FakePlanner)
+    monkeypatch.setattr(app_module, "narration_enricher", fail)
+
+    with TestClient(app) as client:
+        response = client.post("/tutorials/plan", json=planning_request())
+
+    assert response.status_code == expected_status
+    assert response.json()["detail"] == str(error)
 
 
 def test_plan_endpoint_maps_missing_api_key_to_service_unavailable(monkeypatch):

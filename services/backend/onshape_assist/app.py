@@ -8,6 +8,11 @@ from typing import Annotated, Any, Literal
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from .narration import (
+    NarrationConfigurationError,
+    NarrationError,
+    enrich_plan_narration,
+)
 from .planner import OpenAIPlanner, PlannerError
 
 Direction = Literal["left", "right"]
@@ -193,12 +198,8 @@ PlannerFactory = Callable[[], OpenAIPlanner]
 NarrationEnricher = Callable[[TutorialPlan], Awaitable[TutorialPlan]]
 
 
-async def _leave_narration_pending(plan: TutorialPlan) -> TutorialPlan:
-    return plan
-
-
 planner_factory: PlannerFactory = OpenAIPlanner
-narration_enricher: NarrationEnricher = _leave_narration_pending
+narration_enricher: NarrationEnricher = enrich_plan_narration
 
 
 @asynccontextmanager
@@ -260,8 +261,21 @@ async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
             "voice": request.voice,
         }
     )
+    # Planner-provided asset URLs are untrusted placeholders. Always synthesize
+    # both variants so a plausible-looking model URL cannot bypass TTS.
+    for tutorial_step in plan.steps:
+        for variant_name in ("concise", "detailed"):
+            variant = getattr(tutorial_step.narration, variant_name)
+            variant.fal_elevenlabs_audio_url = (
+                f"pending://tts/{tutorial_step.step_id}/{variant_name}"
+            )
+            variant.duration_ms = 0
     try:
         enriched = TutorialPlan.model_validate(await narration_enricher(plan))
+    except NarrationConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except NarrationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(
             status_code=502,
