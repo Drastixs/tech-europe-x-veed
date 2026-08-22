@@ -776,7 +776,11 @@ async def demonstrate_tutorial_step(
             )
             return session
 
-        session.demo_snapshot = _run_onshape_operation(lambda client: client.snapshot(target))
+        try:
+            session.demo_snapshot = _run_onshape_operation(lambda client: client.snapshot(target))
+        except HTTPException as exc:
+            await _fail_tutorial_step_session(session, str(exc.detail))
+            raise
         session.state = "demo_visible"
         await _publish_tutorial_step_status(session)
         await relay.publish(ArmTakeoverCommand(type="arm_takeover"))
@@ -1011,12 +1015,19 @@ async def _restore_visible_demo_before_redo(target: OnshapeTarget) -> None:
     session.state = "restoring"
     await _publish_tutorial_step_status(session)
     await relay.publish(DisarmTakeoverCommand(type="disarm_takeover"))
-    restore = _run_onshape_operation(
-        lambda client: client.restore_baseline(
-            session.baseline,
-            expected_microversion_id=session.demo_snapshot.microversion_id,
+    try:
+        restore = _run_onshape_operation(
+            lambda client: client.restore_baseline(
+                session.baseline,
+                expected_microversion_id=session.demo_snapshot.microversion_id,
+            )
         )
-    )
+    except HTTPException as exc:
+        session.state = "restore_failed"
+        await _publish_tutorial_step_status(
+            session, status="failed", message=f"cannot replay: {exc.detail}"
+        )
+        raise
     session.restore = restore
     if restore.outcome != "restored":
         session.state = "restore_failed"
