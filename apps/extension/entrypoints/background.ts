@@ -6,10 +6,12 @@ import {
 
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
+const KEEPALIVE_INTERVAL_MS = 20_000;
 
 export default defineBackground(() => {
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let keepaliveTimer: ReturnType<typeof setInterval> | undefined;
   let registeredTabId: number | undefined;
   let stopped = false;
 
@@ -69,6 +71,9 @@ export default defineBackground(() => {
         type: "extension.hello",
         tab: tab ? { id: tab.id, url: tab.url } : null
       });
+      keepaliveTimer = setInterval(() => {
+        sendEvent({ version: 1, type: "extension.keepalive" });
+      }, KEEPALIVE_INTERVAL_MS);
     });
 
     socket.addEventListener("message", (event) => {
@@ -107,6 +112,8 @@ export default defineBackground(() => {
     });
 
     socket.addEventListener("close", () => {
+      if (keepaliveTimer) clearInterval(keepaliveTimer);
+      keepaliveTimer = undefined;
       if (!stopped) reconnectTimer = setTimeout(connect, 1000);
     });
   };
@@ -130,6 +137,7 @@ export default defineBackground(() => {
   browser.runtime.onSuspend.addListener(() => {
     stopped = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (keepaliveTimer) clearInterval(keepaliveTimer);
     socket?.close();
   });
 
