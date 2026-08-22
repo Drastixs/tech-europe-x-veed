@@ -14,11 +14,80 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "tutorialPlan": { "type": "object", "required": ["tutorial_id", "title", "steps"], "properties": { "tutorial_id": { "type": "string", "minLength": 1 }, "title": { "type": "string", "minLength": 1 }, "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialStep" } } }, "additionalProperties": false },
-    "tutorialStep": { "type": "object", "required": ["step_id", "goal", "actions", "expected_visible_result"], "properties": { "step_id": { "type": "string", "minLength": 1 }, "goal": { "type": "string", "minLength": 1 }, "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialAction" } }, "expected_visible_result": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
-    "tutorialAction": { "type": "object", "required": ["semantic_target", "precondition", "preferred_activation", "fallback_activation"], "properties": { "semantic_target": { "type": "string", "minLength": 1 }, "precondition": { "type": "string", "minLength": 1 }, "preferred_activation": { "enum": ["dom", "browser_input"] }, "fallback_activation": { "enum": ["browser_input", "none"] } }, "additionalProperties": false },
-    "stateSnapshot": { "type": "object", "required": ["session_id", "step_id", "state", "sequence"], "properties": { "session_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "state": { "enum": ["demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating", "complete", "paused", "failed"] }, "sequence": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
-    "runtimeEvent": { "type": "object", "required": ["event", "session_id", "step_id", "timestamp_ms", "source"], "properties": { "event": { "enum": ["runtime.state.changed", "demo.action.completed", "user.takeover.detected", "baseline.restore.confirmed", "learner.observation.captured", "validation.completed", "runtime.failed"] }, "session_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "timestamp_ms": { "type": "integer", "minimum": 0 }, "source": { "enum": ["runtime", "learner", "executor", "validator", "observer"] } }, "additionalProperties": false },
+    "tutorialPlan": {
+      "type": "object",
+      "required": ["tutorial_id", "application", "output_language", "runtime_preferences", "voice", "steps"],
+      "properties": {
+        "tutorial_id": { "type": "string", "minLength": 1 },
+        "application": { "type": "string", "minLength": 1 },
+        "output_language": { "type": "string", "minLength": 1 },
+        "runtime_preferences": { "type": "object", "required": ["detailed_narration"], "properties": { "detailed_narration": { "type": "boolean" } }, "additionalProperties": false },
+        "voice": { "type": "object", "required": ["provider", "voice_id", "speaking_rate"], "properties": { "provider": { "const": "fal_elevenlabs" }, "voice_id": { "type": "string", "minLength": 1 }, "speaking_rate": { "type": "number", "exclusiveMinimum": 0 } }, "additionalProperties": false },
+        "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialStep" } }
+      },
+      "additionalProperties": false
+    },
+    "tutorialStep": {
+      "type": "object",
+      "required": ["step_id", "goal", "preconditions", "actions", "narration", "voice_cues", "dynamic_corrections", "expected_end_state", "uncertainties"],
+      "properties": {
+        "step_id": { "type": "string", "minLength": 1 },
+        "goal": { "type": "string", "minLength": 1 },
+        "preconditions": { "type": "array", "items": { "type": "string" } },
+        "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialAction" } },
+        "narration": { "$ref": "#/$defs/narration" },
+        "voice_cues": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/voiceCue" } },
+        "dynamic_corrections": { "$ref": "#/$defs/corrections" },
+        "expected_end_state": { "type": "string", "minLength": 1 },
+        "uncertainties": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "tutorialAction": {
+      "type": "object",
+      "required": ["sequence", "action_type", "parameters", "ui_region", "target_label", "target_description", "icon_description", "semantic_action", "expected_visible_result", "preferred_activation", "fallback_activation"],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "action_type": { "enum": ["move", "click", "double_click", "drag", "keypress", "type", "scroll", "wait", "selection"] },
+        "parameters": {
+          "anyOf": [
+            { "$ref": "#/$defs/moveParameters" },
+            { "$ref": "#/$defs/pointerParameters" },
+            { "$ref": "#/$defs/doubleClickParameters" },
+            { "$ref": "#/$defs/dragParameters" },
+            { "$ref": "#/$defs/keypressParameters" },
+            { "$ref": "#/$defs/typeParameters" },
+            { "$ref": "#/$defs/scrollParameters" },
+            { "$ref": "#/$defs/waitParameters" },
+            { "$ref": "#/$defs/selectionParameters" }
+          ]
+        },
+        "ui_region": { "type": "string", "minLength": 1 },
+        "target_label": { "type": ["string", "null"] },
+        "target_description": { "type": "string", "minLength": 1 },
+        "icon_description": { "type": ["string", "null"] },
+        "semantic_action": { "type": "string", "minLength": 1 },
+        "expected_visible_result": { "type": "string", "minLength": 1 },
+        "preferred_activation": { "enum": ["dom_js", "cdp", "vision_only"] },
+        "fallback_activation": { "enum": ["cdp", null] }
+      },
+      "additionalProperties": false
+    },
+    "moveParameters": { "type": "object", "required": ["duration_ms"], "properties": { "duration_ms": { "type": "integer", "minimum": 0, "maximum": 10000 } }, "additionalProperties": false },
+    "pointerParameters": { "type": "object", "required": ["button"], "properties": { "button": { "enum": ["primary", "secondary", "middle"] } }, "additionalProperties": false },
+    "doubleClickParameters": { "type": "object", "required": ["button", "interval_ms"], "properties": { "button": { "enum": ["primary", "secondary", "middle"] }, "interval_ms": { "type": "integer", "minimum": 0, "maximum": 1000 } }, "additionalProperties": false },
+    "dragParameters": { "type": "object", "required": ["end_target_label", "end_target_description", "duration_ms"], "properties": { "end_target_label": { "type": ["string", "null"] }, "end_target_description": { "type": "string", "minLength": 1 }, "duration_ms": { "type": "integer", "minimum": 0, "maximum": 10000 } }, "additionalProperties": false },
+    "keypressParameters": { "type": "object", "required": ["key", "modifiers", "repeat"], "properties": { "key": { "type": "string", "minLength": 1 }, "modifiers": { "type": "array", "items": { "enum": ["alt", "control", "meta", "shift"] } }, "repeat": { "type": "integer", "minimum": 1, "maximum": 100 } }, "additionalProperties": false },
+    "typeParameters": { "type": "object", "required": ["text", "clear_existing", "submit"], "properties": { "text": { "type": "string", "minLength": 1 }, "clear_existing": { "type": "boolean" }, "submit": { "type": "boolean" } }, "additionalProperties": false },
+    "scrollParameters": { "type": "object", "required": ["delta_x", "delta_y", "duration_ms"], "properties": { "delta_x": { "type": "integer" }, "delta_y": { "type": "integer" }, "duration_ms": { "type": "integer", "minimum": 0, "maximum": 10000 } }, "additionalProperties": false },
+    "waitParameters": { "type": "object", "required": ["duration_ms", "condition"], "properties": { "duration_ms": { "type": ["integer", "null"], "minimum": 0, "maximum": 60000 }, "condition": { "type": ["string", "null"] } }, "additionalProperties": false },
+    "selectionParameters": { "type": "object", "required": ["items", "mode", "confirm"], "properties": { "items": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }, "mode": { "enum": ["replace", "add", "toggle"] }, "confirm": { "type": "boolean" } }, "additionalProperties": false },
+    "narration": { "type": "object", "required": ["concise", "detailed"], "properties": { "concise": { "$ref": "#/$defs/narrationVariant" }, "detailed": { "$ref": "#/$defs/narrationVariant" } }, "additionalProperties": false },
+    "narrationVariant": { "type": "object", "required": ["text", "fal_elevenlabs_audio_url", "duration_ms"], "properties": { "text": { "type": "string", "minLength": 1 }, "fal_elevenlabs_audio_url": { "type": "string", "minLength": 1 }, "duration_ms": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+    "voiceCue": { "type": "object", "required": ["cue_id", "phase", "action_sequence", "variant", "text_ref", "start_policy", "blocking"], "properties": { "cue_id": { "type": "string", "minLength": 1 }, "phase": { "enum": ["before_step", "before_action", "during_action", "after_action", "after_step", "on_retry", "on_user_interrupt"] }, "action_sequence": { "type": "integer", "minimum": 1 }, "variant": { "enum": ["concise", "detailed", "both"] }, "text_ref": { "type": "string", "minLength": 1 }, "start_policy": { "enum": ["play_before_motion", "play_with_motion", "play_after_validation", "play_on_event"] }, "blocking": { "type": "boolean" } }, "additionalProperties": false },
+    "corrections": { "type": "object", "required": ["retry", "target_relocated", "validation_failed", "user_interrupt"], "properties": { "retry": { "type": "string", "minLength": 1 }, "target_relocated": { "type": "string", "minLength": 1 }, "validation_failed": { "type": "string", "minLength": 1 }, "user_interrupt": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "stateSnapshot": { "type": "object", "required": ["session_id", "tutorial_id", "step_id", "state", "sequence"], "properties": { "session_id": { "type": "string", "minLength": 1 }, "tutorial_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "state": { "enum": ["demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating", "complete", "paused", "failed"] }, "sequence": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+    "runtimeEvent": { "type": "object", "required": ["event", "session_id", "tutorial_id", "step_id", "timestamp_ms", "source"], "properties": { "event": { "enum": ["runtime.state.changed", "demo.action.completed", "user.takeover.detected", "user.takeover.clicked", "baseline.restore.confirmed", "learner.observation.captured", "validation.completed", "runtime.failed"] }, "session_id": { "type": "string", "minLength": 1 }, "tutorial_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "timestamp_ms": { "type": "integer", "minimum": 0 }, "source": { "enum": ["runtime", "learner", "executor", "validator", "observer"] } }, "additionalProperties": false },
     "validationOutcome": { "type": "object", "required": ["outcome", "microversion_id"], "properties": { "outcome": { "enum": ["correct", "wrong_tool", "no_committed_change", "unexpected_geometry", "concurrent_edit"] }, "microversion_id": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
     "error": { "type": "object", "required": ["code", "message", "recoverable"], "properties": { "code": { "enum": ["baseline_capture_failed", "target_not_found", "provider_unavailable", "restore_failed", "validation_failed", "relay_disconnected"] }, "message": { "type": "string", "minLength": 1 }, "recoverable": { "type": "boolean" } }, "additionalProperties": false }
   }

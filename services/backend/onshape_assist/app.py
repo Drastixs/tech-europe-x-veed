@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from onshape_assist.analysis import fal
 from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
@@ -27,6 +27,18 @@ from .computer_use import (
     StepDemonstrationResult,
 )
 from .config import load_backend_env
+from .contracts import (
+    CONTRACT_VERSION,
+    ClickAction,
+    DragAction,
+    RuntimePreferences,
+    RuntimeSession,
+    RuntimeStateSnapshot,
+    TutorialAction,
+    TutorialPlan,
+    TutorialStep,
+    Voice,
+)
 from .holo import (
     HoloClient,
     HoloConfigurationError,
@@ -51,233 +63,6 @@ from .onshape import (
 from .planner import OpenAIPlanner, PlannerError, error_envelope
 
 Direction = Literal["left", "right"]
-
-
-class TutorialContractModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class RuntimePreferences(TutorialContractModel):
-    detailed_narration: bool
-
-
-class Voice(TutorialContractModel):
-    provider: Literal["fal_elevenlabs"]
-    voice_id: str = Field(min_length=1)
-    speaking_rate: Annotated[float, Field(gt=0)]
-
-
-class TutorialActionBase(TutorialContractModel):
-    sequence: Annotated[int, Field(ge=1)]
-    ui_region: str = Field(min_length=1)
-    target_label: str | None
-    target_description: str = Field(min_length=1)
-    icon_description: str | None
-    semantic_action: str = Field(min_length=1)
-    expected_visible_result: str = Field(min_length=1)
-    preferred_activation: Literal["dom_js", "cdp", "vision_only"]
-    fallback_activation: Literal["cdp"] | None
-
-
-class MoveParameters(TutorialContractModel):
-    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
-
-
-class PointerParameters(TutorialContractModel):
-    button: Literal["primary", "secondary", "middle"]
-
-
-class DoubleClickParameters(PointerParameters):
-    interval_ms: Annotated[int, Field(ge=0, le=1_000)]
-
-
-class DragParameters(TutorialContractModel):
-    end_target_label: str | None
-    end_target_description: str = Field(min_length=1)
-    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
-
-
-class KeypressParameters(TutorialContractModel):
-    key: str = Field(min_length=1)
-    modifiers: list[Literal["alt", "control", "meta", "shift"]]
-    repeat: Annotated[int, Field(ge=1, le=100)]
-
-
-class TypeParameters(TutorialContractModel):
-    text: str = Field(min_length=1)
-    clear_existing: bool
-    submit: bool
-
-
-class ScrollParameters(TutorialContractModel):
-    delta_x: int
-    delta_y: int
-    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
-
-    @model_validator(mode="after")
-    def validate_nonzero_delta(self) -> ScrollParameters:
-        if self.delta_x == 0 and self.delta_y == 0:
-            raise ValueError("scroll parameters require a non-zero delta")
-        return self
-
-
-class WaitParameters(TutorialContractModel):
-    duration_ms: Annotated[int, Field(ge=0, le=60_000)] | None
-    condition: str | None
-
-    @model_validator(mode="after")
-    def validate_duration_or_condition(self) -> WaitParameters:
-        if self.duration_ms is None and not self.condition:
-            raise ValueError("wait parameters require duration_ms or condition")
-        return self
-
-
-class SelectionParameters(TutorialContractModel):
-    items: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
-    mode: Literal["replace", "add", "toggle"]
-    confirm: bool
-
-
-class MoveAction(TutorialActionBase):
-    action_type: Literal["move"]
-    parameters: MoveParameters
-
-
-class ClickAction(TutorialActionBase):
-    action_type: Literal["click"]
-    parameters: PointerParameters
-
-
-class DoubleClickAction(TutorialActionBase):
-    action_type: Literal["double_click"]
-    parameters: DoubleClickParameters
-
-
-class DragAction(TutorialActionBase):
-    action_type: Literal["drag"]
-    parameters: DragParameters
-
-
-class KeypressAction(TutorialActionBase):
-    action_type: Literal["keypress"]
-    parameters: KeypressParameters
-
-
-class TypeAction(TutorialActionBase):
-    action_type: Literal["type"]
-    parameters: TypeParameters
-
-
-class ScrollAction(TutorialActionBase):
-    action_type: Literal["scroll"]
-    parameters: ScrollParameters
-
-
-class WaitAction(TutorialActionBase):
-    action_type: Literal["wait"]
-    parameters: WaitParameters
-
-
-class SelectionAction(TutorialActionBase):
-    action_type: Literal["selection"]
-    parameters: SelectionParameters
-
-
-TutorialAction = (
-    MoveAction
-    | ClickAction
-    | DoubleClickAction
-    | DragAction
-    | KeypressAction
-    | TypeAction
-    | ScrollAction
-    | WaitAction
-    | SelectionAction
-)
-
-
-class NarrationVariant(TutorialContractModel):
-    text: str = Field(min_length=1)
-    fal_elevenlabs_audio_url: str = Field(min_length=1)
-    duration_ms: Annotated[int, Field(ge=0)]
-
-
-class Narration(TutorialContractModel):
-    concise: NarrationVariant
-    detailed: NarrationVariant
-
-
-class VoiceCue(TutorialContractModel):
-    cue_id: str = Field(min_length=1)
-    phase: Literal[
-        "before_step",
-        "before_action",
-        "during_action",
-        "after_action",
-        "after_step",
-        "on_retry",
-        "on_user_interrupt",
-    ]
-    action_sequence: Annotated[int, Field(ge=1)]
-    variant: Literal["concise", "detailed", "both"]
-    text_ref: str = Field(min_length=1)
-    start_policy: Literal[
-        "play_before_motion",
-        "play_with_motion",
-        "play_after_validation",
-        "play_on_event",
-    ]
-    blocking: bool
-
-
-class DynamicCorrections(TutorialContractModel):
-    retry: str = Field(min_length=1)
-    target_relocated: str = Field(min_length=1)
-    validation_failed: str = Field(min_length=1)
-    user_interrupt: str = Field(min_length=1)
-
-
-class TutorialStep(TutorialContractModel):
-    step_id: str = Field(min_length=1)
-    goal: str = Field(min_length=1)
-    preconditions: list[str]
-    actions: Annotated[list[TutorialAction], Field(min_length=1)]
-    narration: Narration
-    voice_cues: Annotated[list[VoiceCue], Field(min_length=1)]
-    dynamic_corrections: DynamicCorrections
-    expected_end_state: str = Field(min_length=1)
-    uncertainties: list[str]
-
-    @model_validator(mode="after")
-    def validate_action_sequence_and_cues(self) -> TutorialStep:
-        sequences = [action.sequence for action in self.actions]
-        expected = list(range(1, len(self.actions) + 1))
-        if sequences != expected:
-            raise ValueError("tutorial action sequences must be contiguous and ordered from 1")
-        if any(cue.action_sequence not in sequences for cue in self.voice_cues):
-            raise ValueError("voice cue action_sequence must reference an action in its step")
-        if any(
-            action.preferred_activation == "dom_js" and action.fallback_activation != "cdp"
-            for action in self.actions
-        ):
-            raise ValueError("dom_js actions must use cdp as their fallback activation")
-        return self
-
-
-class TutorialPlan(TutorialContractModel):
-    tutorial_id: str = Field(min_length=1)
-    application: str = Field(min_length=1)
-    output_language: str = Field(min_length=1)
-    runtime_preferences: RuntimePreferences
-    voice: Voice
-    steps: Annotated[list[TutorialStep], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def validate_unique_step_ids(self) -> TutorialPlan:
-        step_ids = [step.step_id for step in self.steps]
-        if len(step_ids) != len(set(step_ids)):
-            raise ValueError("tutorial step_id values must be unique")
-        return self
 
 
 class TutorialPlanningRequest(BaseModel):
@@ -356,6 +141,7 @@ class LoadTutorialCommand(CommandBase):
     type: Literal["load_tutorial"]
     plan: TutorialPlan
     step: Annotated[int | None, Field(ge=1)] = None
+    runtime_session: RuntimeSession | None = None
 
 
 class ArmTakeoverCommand(CommandBase):
@@ -869,7 +655,27 @@ async def _plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
             ),
         ) from exc
 
-    command = LoadTutorialCommand(type="load_tutorial", plan=enriched, step=request.step)
+    if request.step > len(enriched.steps):
+        raise HTTPException(status_code=422, detail="step exceeds the number of plan steps")
+    active_step = enriched.steps[request.step - 1]
+    session_id = f"{enriched.tutorial_id}:{uuid4()}"
+    runtime_session = RuntimeSession(
+        contract_version=CONTRACT_VERSION,
+        session_id=session_id,
+        state_snapshot=RuntimeStateSnapshot(
+            session_id=session_id,
+            tutorial_id=enriched.tutorial_id,
+            step_id=active_step.step_id,
+            state="waiting",
+            sequence=0,
+        ),
+    )
+    command = LoadTutorialCommand(
+        type="load_tutorial",
+        plan=enriched,
+        step=request.step,
+        runtime_session=runtime_session,
+    )
     try:
         normalized = normalize_command(command)
     except ValueError as exc:
@@ -907,12 +713,24 @@ async def extension_socket(websocket: WebSocket) -> None:
 
 
 def normalize_command(command: DemoCommand) -> DemoCommand:
-    if (
-        command.type == "load_tutorial"
-        and command.step is not None
-        and command.step > len(command.plan.steps)
-    ):
-        raise ValueError("load_tutorial step exceeds the number of steps")
+    if command.type == "load_tutorial":
+        if command.step is not None and command.step > len(command.plan.steps):
+            raise ValueError("load_tutorial step exceeds the number of steps")
+        if command.runtime_session is not None:
+            runtime_session = command.runtime_session
+            snapshot = runtime_session.state_snapshot
+            if snapshot.tutorial_id != command.plan.tutorial_id:
+                raise ValueError("runtime session must reference the loaded tutorial")
+            step_ids = {step.step_id for step in command.plan.steps}
+            if snapshot.step_id not in step_ids:
+                raise ValueError("runtime session must reference a loaded tutorial step")
+            if any(
+                event.tutorial_id != command.plan.tutorial_id
+                for event in runtime_session.runtime_events
+            ):
+                raise ValueError("runtime events must reference the loaded tutorial")
+            if any(event.step_id not in step_ids for event in runtime_session.runtime_events):
+                raise ValueError("runtime events must reference a loaded tutorial step")
     return command
 
 

@@ -149,13 +149,35 @@ export type TutorialStepStatusCommand = {
   message?: string | null;
 };
 
+export type RuntimeSession = {
+  contract_version: 1;
+  session_id: string;
+  state_snapshot: {
+    session_id: string;
+    tutorial_id: string;
+    step_id: string;
+    state: "demonstrating" | "demo_visible" | "restoring" | "waiting" | "learner_attempt" | "validating" | "complete" | "paused" | "failed";
+    sequence: number;
+  };
+  runtime_events: Array<{
+    event: "runtime.state.changed" | "demo.action.completed" | "user.takeover.detected" | "user.takeover.clicked" | "baseline.restore.confirmed" | "learner.observation.captured" | "validation.completed" | "runtime.failed";
+    session_id: string;
+    tutorial_id: string;
+    step_id: string;
+    timestamp_ms: number;
+    source: "runtime" | "learner" | "executor" | "validator" | "observer";
+  }>;
+  validation_outcome?: { outcome: "correct" | "wrong_tool" | "no_committed_change" | "unexpected_geometry" | "concurrent_edit"; microversion_id: string } | null;
+  error?: { code: "baseline_capture_failed" | "target_not_found" | "provider_unavailable" | "restore_failed" | "validation_failed" | "relay_disconnected"; message: string; recoverable: boolean } | null;
+};
+
 export type OverlayCommand =
   | { type: "show" }
   | { type: "hide" }
   | { type: "move"; x: number; y: number; duration_ms?: number | null }
   | { type: "click" }
   | { type: "navigate"; direction: Direction }
-  | { type: "load_tutorial"; plan: TutorialPlan; step?: number | null }
+  | { type: "load_tutorial"; plan: TutorialPlan; step?: number | null; runtime_session?: RuntimeSession | null }
   | { type: "arm_takeover" }
   | { type: "disarm_takeover" }
   | TutorialStepStatusCommand;
@@ -243,7 +265,8 @@ export const isDemoEnvelope = (value: unknown): value is DemoEnvelope => {
       return command.direction === "left" || command.direction === "right";
     case "load_tutorial":
       return isTutorialPlan(command.plan) &&
-        (command.step == null || isPositiveInteger(command.step));
+        (command.step == null || isPositiveInteger(command.step)) &&
+        (command.runtime_session == null || isRuntimeSession(command.runtime_session, command.plan));
     case "capture_observation":
       return isNonEmptyString(command.request_id);
     case "execute_action":
@@ -271,7 +294,7 @@ export const isTutorialStepStatusCommand = (
   command: DemoCommand
 ): command is TutorialStepStatusCommand => command.type === "tutorial_step_status";
 
-const isTutorialPlan = (value: unknown): value is TutorialPlan => {
+export const isTutorialPlan = (value: unknown): value is TutorialPlan => {
   if (!isRecord(value)) return false;
   return isNonEmptyString(value.tutorial_id) &&
     isNonEmptyString(value.application) &&
@@ -282,6 +305,36 @@ const isTutorialPlan = (value: unknown): value is TutorialPlan => {
     Array.isArray(value.steps) &&
     value.steps.length > 0 &&
     value.steps.every(isTutorialStep);
+};
+
+const runtimeStates = new Set([
+  "demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating", "complete", "paused", "failed"
+]);
+const runtimeEvents = new Set([
+  "runtime.state.changed", "demo.action.completed", "user.takeover.detected", "user.takeover.clicked", "baseline.restore.confirmed", "learner.observation.captured", "validation.completed", "runtime.failed"
+]);
+const validationOutcomes = new Set([
+  "correct", "wrong_tool", "no_committed_change", "unexpected_geometry", "concurrent_edit"
+]);
+const runtimeErrorCodes = new Set([
+  "baseline_capture_failed", "target_not_found", "provider_unavailable", "restore_failed", "validation_failed", "relay_disconnected"
+]);
+
+const isRuntimeSession = (value: unknown, plan: TutorialPlan): value is RuntimeSession => {
+  if (!isRecord(value) || value.contract_version !== 1 || !isNonEmptyString(value.session_id)) return false;
+  const snapshot = value.state_snapshot;
+  if (!isRecord(snapshot) || snapshot.session_id !== value.session_id || snapshot.tutorial_id !== plan.tutorial_id ||
+    !isNonEmptyString(snapshot.step_id) || !runtimeStates.has(String(snapshot.state)) ||
+    !Number.isInteger(snapshot.sequence) || !Array.isArray(value.runtime_events)) return false;
+  const stepIds = new Set(plan.steps.map((step) => step.step_id));
+  if (!stepIds.has(snapshot.step_id)) return false;
+  if (value.validation_outcome != null && (!isRecord(value.validation_outcome) ||
+    !validationOutcomes.has(String(value.validation_outcome.outcome)) || !isNonEmptyString(value.validation_outcome.microversion_id))) return false;
+  if (value.error != null && (!isRecord(value.error) || !runtimeErrorCodes.has(String(value.error.code)) ||
+    !isNonEmptyString(value.error.message) || typeof value.error.recoverable !== "boolean")) return false;
+  return value.runtime_events.every((event) => isRecord(event) && runtimeEvents.has(String(event.event)) &&
+    event.session_id === value.session_id && event.tutorial_id === plan.tutorial_id && stepIds.has(String(event.step_id)) &&
+    isNonNegativeNumber(event.timestamp_ms) && ["runtime", "learner", "executor", "validator", "observer"].includes(String(event.source)));
 };
 
 const isVoice = (value: unknown): value is Voice =>

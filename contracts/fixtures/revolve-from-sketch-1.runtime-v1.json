@@ -2,18 +2,61 @@
   "contract_version": 1,
   "tutorial_plan": {
     "tutorial_id": "revolve-from-sketch-1",
-    "title": "Revolve Sketch 1",
+    "application": "Onshape",
+    "output_language": "en",
+    "runtime_preferences": { "detailed_narration": false },
+    "voice": { "provider": "fal_elevenlabs", "voice_id": "friendly-tutor", "speaking_rate": 1.0 },
     "steps": [{
       "step_id": "open-revolve",
       "goal": "Open Revolve for Sketch 1.",
-      "actions": [{ "semantic_target": "Sketch 1 in the feature tree", "precondition": "Sketch 1 is visible.", "preferred_activation": "dom", "fallback_activation": "browser_input" }],
-      "expected_visible_result": "The Revolve dialog is open."
+      "preconditions": ["Sketch 1 is visible."],
+      "actions": [{
+        "sequence": 1,
+        "action_type": "click",
+        "parameters": { "button": "primary" },
+        "ui_region": "feature tree",
+        "target_label": "Sketch 1",
+        "target_description": "Sketch 1 in the feature tree.",
+        "icon_description": null,
+        "semantic_action": "Select Sketch 1.",
+        "expected_visible_result": "Sketch 1 is highlighted.",
+        "preferred_activation": "dom_js",
+        "fallback_activation": "cdp"
+      }],
+      "narration": {
+        "concise": { "text": "Select Sketch 1.", "fal_elevenlabs_audio_url": "pending://tts/open-revolve/concise", "duration_ms": 0 },
+        "detailed": { "text": "I will select Sketch 1 from the feature tree.", "fal_elevenlabs_audio_url": "pending://tts/open-revolve/detailed", "duration_ms": 0 }
+      },
+      "voice_cues": [{
+        "cue_id": "open-revolve-intro",
+        "phase": "before_step",
+        "action_sequence": 1,
+        "variant": "both",
+        "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+        "start_policy": "play_before_motion",
+        "blocking": true
+      }],
+      "dynamic_corrections": {
+        "retry": "I will check the screen again.",
+        "target_relocated": "The target moved, so I will locate it again.",
+        "validation_failed": "That did not open, so I will pause.",
+        "user_interrupt": "You selected takeover, so I will stop."
+      },
+      "expected_end_state": "The Revolve dialog is open.",
+      "uncertainties": ["Toolbar position may vary."]
     }]
   },
-  "state_snapshot": { "session_id": "session-revolve-1", "step_id": "open-revolve", "state": "waiting", "sequence": 4 },
+  "state_snapshot": {
+    "session_id": "session-revolve-1",
+    "tutorial_id": "revolve-from-sketch-1",
+    "step_id": "open-revolve",
+    "state": "waiting",
+    "sequence": 4
+  },
   "runtime_events": [
-    { "event": "runtime.state.changed", "session_id": "session-revolve-1", "step_id": "open-revolve", "timestamp_ms": 1730000000000, "source": "runtime" },
-    { "event": "validation.completed", "session_id": "session-revolve-1", "step_id": "open-revolve", "timestamp_ms": 1730000001000, "source": "validator" }
+    { "event": "runtime.state.changed", "session_id": "session-revolve-1", "tutorial_id": "revolve-from-sketch-1", "step_id": "open-revolve", "timestamp_ms": 1730000000000, "source": "runtime" },
+    { "event": "user.takeover.clicked", "session_id": "session-revolve-1", "tutorial_id": "revolve-from-sketch-1", "step_id": "open-revolve", "timestamp_ms": 1730000000500, "source": "learner" },
+    { "event": "validation.completed", "session_id": "session-revolve-1", "tutorial_id": "revolve-from-sketch-1", "step_id": "open-revolve", "timestamp_ms": 1730000001000, "source": "validator" }
   ],
   "validation_outcome": { "outcome": "correct", "microversion_id": "mv-after-revolve" },
   "error": { "code": "provider_unavailable", "message": "The observation provider is unavailable.", "recoverable": true }
