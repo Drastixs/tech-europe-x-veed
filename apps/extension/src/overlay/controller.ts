@@ -1,4 +1,4 @@
-import type { DemoCommand, Direction, TutorialStep } from "./protocol";
+import type { DemoCommand, Direction, TutorialPlan, TutorialStep } from "./protocol";
 
 export type OverlayState = {
   sessionVisible: boolean;
@@ -9,6 +9,7 @@ export type OverlayState = {
   step: number;
   clickRevision: number;
   activeDirection: Direction | null;
+  plan: TutorialPlan | null;
   steps: TutorialStep[];
   takeoverArmed: boolean;
   lastCommand: string;
@@ -23,10 +24,19 @@ export const initialOverlayState: OverlayState = {
   step: 1,
   clickRevision: 0,
   activeDirection: null,
-  steps: [{ step_id: "waiting", text: "Waiting for a tutorial step…" }],
+  plan: null,
+  steps: [],
   takeoverArmed: false,
   lastCommand: "ready"
 };
+
+export function currentTutorialText(state: OverlayState): string {
+  const currentStep = state.steps[state.step - 1];
+  if (!currentStep) return "Waiting for a tutorial step…";
+  return state.plan?.runtime_preferences.detailed_narration
+    ? currentStep.narration.detailed.text
+    : currentStep.narration.concise.text;
+}
 
 export type LocalAction = DemoCommand | { type: "takeover" } | { type: "clear_direction" };
 
@@ -73,17 +83,18 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
         ...state,
         sessionVisible: true,
         guidanceVisible: true,
-        step: Math.min(state.steps.length, Math.max(1, state.step + delta)),
+        step: Math.min(Math.max(1, state.steps.length), Math.max(1, state.step + delta)),
         activeDirection: action.direction,
         lastCommand: `step ${action.direction}`
       };
     }
     case "load_tutorial": {
-      if (action.steps.length === 0) return state;
+      if (action.plan.steps.length === 0) return state;
       return {
         ...state,
-        steps: action.steps,
-        step: Math.min(action.steps.length, Math.max(1, action.step ?? 1)),
+        plan: action.plan,
+        steps: action.plan.steps,
+        step: Math.min(action.plan.steps.length, Math.max(1, action.step ?? 1)),
         sessionVisible: true,
         guidanceVisible: true,
         lastCommand: "load tutorial"

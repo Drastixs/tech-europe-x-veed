@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, type CSSProperties } from "react";
 import {
   commandBus,
+  currentTutorialText,
   hitTestNavigation,
   initialOverlayState,
   reduceOverlayState,
@@ -101,7 +102,7 @@ export function Overlay() {
         className={`oa-callout ${state.guidanceVisible ? "is-visible" : "is-hidden"}`}
         style={calloutStyle}
       >
-        <span>{state.steps[state.step - 1]?.text}</span>
+        <span>{currentTutorialText(state)}</span>
       </div>
 
       <nav className="oa-nav" aria-label="Tutorial steps">
@@ -114,7 +115,7 @@ export function Overlay() {
         >
           ←
         </button>
-        <span className="oa-step">{state.step}/{state.steps.length}</span>
+        <span className="oa-step">{state.steps.length === 0 ? "0/0" : `${state.step}/${state.steps.length}`}</span>
         <button
           ref={rightRef}
           className={state.activeDirection === "right" ? "is-active" : ""}

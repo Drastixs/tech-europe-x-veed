@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  currentTutorialText,
   hitTestNavigation,
   initialOverlayState,
   reduceOverlayState
 } from "./controller";
+import { tutorialPlanFixture } from "./test-fixtures";
 
 describe("overlay controller", () => {
   it("hides guidance but keeps navigation available after takeover", () => {
@@ -21,20 +23,46 @@ describe("overlay controller", () => {
   it("clamps navigation within tutorial bounds", () => {
     let state = reduceOverlayState(initialOverlayState, {
       type: "load_tutorial",
-      steps: [
-        { step_id: "one", text: "One" },
-        { step_id: "two", text: "Two" },
-        { step_id: "three", text: "Three" }
-      ]
+      plan: tutorialPlanFixture
     });
     for (let index = 0; index < 20; index += 1) {
       state = reduceOverlayState(state, { type: "navigate", direction: "right" });
     }
-    expect(state.step).toBe(3);
+    expect(state.step).toBe(2);
     for (let index = 0; index < 20; index += 1) {
       state = reduceOverlayState(state, { type: "navigate", direction: "left" });
     }
     expect(state.step).toBe(1);
+  });
+
+  it("stores the complete plan and selects its requested rich step", () => {
+    const state = reduceOverlayState(initialOverlayState, {
+      type: "load_tutorial",
+      plan: tutorialPlanFixture,
+      step: 2
+    });
+
+    expect(state.plan).toBe(tutorialPlanFixture);
+    expect(state.steps).toBe(tutorialPlanFixture.steps);
+    expect(state.step).toBe(2);
+    expect(state.steps[1]?.narration.detailed.text).toContain("open Revolve");
+    expect(state.steps[1]?.actions[0]?.target_label).toBe("Revolve");
+  });
+
+  it("selects narration text using the plan runtime preference", () => {
+    const conciseState = reduceOverlayState(initialOverlayState, {
+      type: "load_tutorial",
+      plan: tutorialPlanFixture
+    });
+    expect(currentTutorialText(conciseState)).toBe("Select Sketch 1.");
+
+    const detailedPlan = structuredClone(tutorialPlanFixture);
+    detailedPlan.runtime_preferences.detailed_narration = true;
+    const detailedState = reduceOverlayState(initialOverlayState, {
+      type: "load_tutorial",
+      plan: detailedPlan
+    });
+    expect(currentTutorialText(detailedState)).toContain("feature tree");
   });
 
   it("arms takeover explicitly and disarms after takeover", () => {
