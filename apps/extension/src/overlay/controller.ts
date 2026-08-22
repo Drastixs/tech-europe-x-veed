@@ -1,4 +1,12 @@
-import type { DemoCommand, Direction, TutorialStep } from "./protocol";
+import type {
+  DemoCommand,
+  Direction,
+  NarrationVariant,
+  TutorialPlan,
+  TutorialStep
+} from "./protocol";
+
+export type NarrationMode = "concise" | "detailed";
 
 export type OverlayState = {
   sessionVisible: boolean;
@@ -9,7 +17,9 @@ export type OverlayState = {
   step: number;
   clickRevision: number;
   activeDirection: Direction | null;
+  plan: TutorialPlan | null;
   steps: TutorialStep[];
+  narrationMode: NarrationMode;
   takeoverArmed: boolean;
   lastCommand: string;
 };
@@ -23,12 +33,27 @@ export const initialOverlayState: OverlayState = {
   step: 1,
   clickRevision: 0,
   activeDirection: null,
-  steps: [{ step_id: "waiting", text: "Waiting for a tutorial step…" }],
+  plan: null,
+  steps: [],
+  narrationMode: "concise",
   takeoverArmed: false,
   lastCommand: "ready"
 };
 
-export type LocalAction = DemoCommand | { type: "takeover" } | { type: "clear_direction" };
+export function currentTutorialText(state: OverlayState): string {
+  return currentNarration(state)?.text ?? "Waiting for a tutorial step…";
+}
+
+export function currentNarration(state: OverlayState): NarrationVariant | null {
+  const currentStep = state.steps[state.step - 1];
+  return currentStep?.narration[state.narrationMode] ?? null;
+}
+
+export type LocalAction =
+  | DemoCommand
+  | { type: "takeover" }
+  | { type: "clear_direction" }
+  | { type: "set_narration_mode"; mode: NarrationMode };
 
 export function reduceOverlayState(state: OverlayState, action: LocalAction): OverlayState {
   switch (action.type) {
@@ -73,17 +98,19 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
         ...state,
         sessionVisible: true,
         guidanceVisible: true,
-        step: Math.min(state.steps.length, Math.max(1, state.step + delta)),
+        step: Math.min(Math.max(1, state.steps.length), Math.max(1, state.step + delta)),
         activeDirection: action.direction,
         lastCommand: `step ${action.direction}`
       };
     }
     case "load_tutorial": {
-      if (action.steps.length === 0) return state;
+      if (action.plan.steps.length === 0) return state;
       return {
         ...state,
-        steps: action.steps,
-        step: Math.min(action.steps.length, Math.max(1, action.step ?? 1)),
+        plan: action.plan,
+        steps: action.plan.steps,
+        narrationMode: action.plan.runtime_preferences.detailed_narration ? "detailed" : "concise",
+        step: Math.min(action.plan.steps.length, Math.max(1, action.step ?? 1)),
         sessionVisible: true,
         guidanceVisible: true,
         lastCommand: "load tutorial"
@@ -95,6 +122,8 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
       return { ...state, takeoverArmed: false, lastCommand: "takeover disarmed" };
     case "clear_direction":
       return { ...state, activeDirection: null };
+    case "set_narration_mode":
+      return { ...state, narrationMode: action.mode, lastCommand: `${action.mode} narration` };
   }
 }
 

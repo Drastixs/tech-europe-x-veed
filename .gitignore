@@ -19,6 +19,7 @@ dist/
 build/
 coverage/
 *.log
+.cache/
 .wxt/
 .output/
 preview-dist/

@@ -6,7 +6,8 @@ import json
 import sys
 
 path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/analysis-live.json"
-d = json.load(open(path))
+with open(path) as analysis_file:
+    d = json.load(analysis_file)
 
 v = d["video"]
 print(f"VIDEO: {v['url']}")
