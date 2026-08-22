@@ -2,6 +2,7 @@ import type {
   DemoCommand,
   Direction,
   NarrationVariant,
+  RuntimeSession,
   TutorialPlan,
   TutorialStep
 } from "./protocol";
@@ -18,6 +19,7 @@ export type OverlayState = {
   clickRevision: number;
   activeDirection: Direction | null;
   plan: TutorialPlan | null;
+  runtimeSession: RuntimeSession | null;
   steps: TutorialStep[];
   narrationMode: NarrationMode;
   takeoverArmed: boolean;
@@ -34,6 +36,7 @@ export const initialOverlayState: OverlayState = {
   clickRevision: 0,
   activeDirection: null,
   plan: null,
+  runtimeSession: null,
   steps: [],
   narrationMode: "concise",
   takeoverArmed: false,
@@ -108,6 +111,7 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
       return {
         ...state,
         plan: action.plan,
+        runtimeSession: action.runtime_session ?? null,
         steps: action.plan.steps,
         narrationMode: action.plan.runtime_preferences.detailed_narration ? "detailed" : "concise",
         step: Math.min(action.plan.steps.length, Math.max(1, action.step ?? 1)),

@@ -6,15 +6,24 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError
 
 from onshape_assist.analysis import fal
 from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
 from onshape_assist.analysis.pipeline import AnalysisError, analyze_video_async
 
+from .contracts import (
+    CONTRACT_VERSION,
+    RuntimePreferences,
+    RuntimeSession,
+    RuntimeStateSnapshot,
+    TutorialPlan,
+    Voice,
+)
 from .config import load_backend_env
 from .launcher_page import render_launcher_page
 from .narration import (
@@ -43,126 +52,6 @@ CommandType = Literal[
     "arm_takeover",
     "disarm_takeover",
 ]
-
-
-class TutorialContractModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class RuntimePreferences(TutorialContractModel):
-    detailed_narration: bool
-
-
-class Voice(TutorialContractModel):
-    provider: Literal["fal_elevenlabs"]
-    voice_id: str = Field(min_length=1)
-    speaking_rate: Annotated[float, Field(gt=0)]
-
-
-class TutorialAction(TutorialContractModel):
-    sequence: Annotated[int, Field(ge=1)]
-    action_type: Literal[
-        "move",
-        "click",
-        "double_click",
-        "drag",
-        "keypress",
-        "type",
-        "scroll",
-        "wait",
-        "selection",
-    ]
-    ui_region: str = Field(min_length=1)
-    target_label: str | None
-    target_description: str = Field(min_length=1)
-    semantic_action: str = Field(min_length=1)
-    expected_visible_result: str = Field(min_length=1)
-    preferred_activation: Literal["dom_js", "cdp", "vision_only"]
-    fallback_activation: Literal["cdp"] | None
-
-
-class NarrationVariant(TutorialContractModel):
-    text: str = Field(min_length=1)
-    fal_elevenlabs_audio_url: str = Field(min_length=1)
-    duration_ms: Annotated[int, Field(ge=0)]
-
-
-class Narration(TutorialContractModel):
-    concise: NarrationVariant
-    detailed: NarrationVariant
-
-
-class VoiceCue(TutorialContractModel):
-    cue_id: str = Field(min_length=1)
-    phase: Literal[
-        "before_step",
-        "before_action",
-        "during_action",
-        "after_action",
-        "after_step",
-        "on_retry",
-        "on_user_interrupt",
-    ]
-    action_sequence: Annotated[int, Field(ge=1)]
-    variant: Literal["concise", "detailed", "both"]
-    text_ref: str = Field(min_length=1)
-    start_policy: Literal[
-        "play_before_motion",
-        "play_with_motion",
-        "play_after_validation",
-        "play_on_event",
-    ]
-    blocking: bool
-
-
-class DynamicCorrections(TutorialContractModel):
-    retry: str = Field(min_length=1)
-    target_relocated: str = Field(min_length=1)
-    validation_failed: str = Field(min_length=1)
-    user_interrupt: str = Field(min_length=1)
-
-
-class TutorialStep(TutorialContractModel):
-    step_id: str = Field(min_length=1)
-    goal: str = Field(min_length=1)
-    preconditions: list[str]
-    actions: Annotated[list[TutorialAction], Field(min_length=1)]
-    narration: Narration
-    voice_cues: Annotated[list[VoiceCue], Field(min_length=1)]
-    dynamic_corrections: DynamicCorrections
-    expected_end_state: str = Field(min_length=1)
-    uncertainties: list[str]
-
-    @model_validator(mode="after")
-    def validate_action_sequence_and_cues(self) -> TutorialStep:
-        sequences = [action.sequence for action in self.actions]
-        expected = list(range(1, len(self.actions) + 1))
-        if sequences != expected:
-            raise ValueError("tutorial action sequences must be contiguous and ordered from 1")
-        if any(cue.action_sequence not in sequences for cue in self.voice_cues):
-            raise ValueError("voice cue action_sequence must reference an action in its step")
-        if any(
-            action.preferred_activation == "dom_js" and action.fallback_activation != "cdp"
-            for action in self.actions
-        ):
-            raise ValueError("dom_js actions must use cdp as their fallback activation")
-        return self
-
-
-class TutorialPlan(TutorialContractModel):
-    tutorial_id: str = Field(min_length=1)
-    application: str = Field(min_length=1)
-    output_language: str = Field(min_length=1)
-    runtime_preferences: RuntimePreferences
-    voice: Voice
-    steps: Annotated[list[TutorialStep], Field(min_length=1)]
-
-    @model_validator(mode="after")
-    def validate_unique_step_ids(self) -> TutorialPlan:
-        step_ids = [step.step_id for step in self.steps]
-        if len(step_ids) != len(set(step_ids)):
-            raise ValueError("tutorial step_id values must be unique")
-        return self
 
 
 class TutorialPlanningRequest(BaseModel):
@@ -217,6 +106,7 @@ class DemoCommand(BaseModel):
     direction: Direction | None = None
     plan: TutorialPlan | None = None
     step: Annotated[int | None, Field(ge=1)] = None
+    runtime_session: RuntimeSession | None = None
 
 
 class DemoEnvelope(BaseModel):
@@ -468,7 +358,22 @@ async def _plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
             ),
         ) from exc
 
-    command = DemoCommand(type="load_tutorial", plan=enriched, step=request.step)
+    active_step = enriched.steps[request.step - 1]
+    session_id = f"{enriched.tutorial_id}:{uuid4()}"
+    runtime_session = RuntimeSession(
+        contract_version=CONTRACT_VERSION,
+        session_id=session_id,
+        state_snapshot=RuntimeStateSnapshot(
+            session_id=session_id,
+            tutorial_id=enriched.tutorial_id,
+            step_id=active_step.step_id,
+            state="waiting",
+            sequence=0,
+        ),
+    )
+    command = DemoCommand(
+        type="load_tutorial", plan=enriched, step=request.step, runtime_session=runtime_session
+    )
     try:
         normalized = normalize_command(command)
     except ValueError as exc:
@@ -505,6 +410,16 @@ def normalize_command(command: DemoCommand) -> DemoCommand:
             raise ValueError("load_tutorial requires a plan")
         if command.step is not None and command.step > len(command.plan.steps):
             raise ValueError("load_tutorial step exceeds the number of steps")
+        if command.runtime_session is not None:
+            if command.runtime_session.state_snapshot.tutorial_id != command.plan.tutorial_id:
+                raise ValueError("runtime session must reference the loaded tutorial")
+            step_ids = {step.step_id for step in command.plan.steps}
+            if command.runtime_session.state_snapshot.step_id not in step_ids:
+                raise ValueError("runtime session must reference a loaded tutorial step")
+            if any(event.tutorial_id != command.plan.tutorial_id for event in command.runtime_session.runtime_events):
+                raise ValueError("runtime events must reference the loaded tutorial")
+            if any(event.step_id not in step_ids for event in command.runtime_session.runtime_events):
+                raise ValueError("runtime events must reference a loaded tutorial step")
     return command
 
 
