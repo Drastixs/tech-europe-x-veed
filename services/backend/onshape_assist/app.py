@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
+
+from onshape_assist.analysis import fal
+from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
+from onshape_assist.analysis.pipeline import AnalysisError, analyze_video_async
 
 Direction = Literal["left", "right"]
 CommandType = Literal["show", "hide", "move", "click", "navigate"]
@@ -88,6 +93,24 @@ async def command(command: DemoCommand) -> DemoEnvelope:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await relay.publish(normalized)
+
+
+@app.post("/analyze", response_model=AnalysisResult)
+async def analyze(
+    request: AnalysisRequest,
+    gemini_model: str = fal.DEFAULT_GEMINI_MODEL,
+    enrichment: bool = True,
+) -> AnalysisResult:
+    if not os.environ.get("FAL_KEY"):
+        raise HTTPException(status_code=503, detail="FAL_KEY is not configured on the server")
+    try:
+        return await analyze_video_async(
+            request,
+            gemini_model=gemini_model,
+            with_enrichment=enrichment,
+        )
+    except AnalysisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.websocket("/ws/extension")
