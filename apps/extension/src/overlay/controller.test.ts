@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  directionForKey,
   hitTestNavigation,
   initialOverlayState,
-  reduceOverlayState,
-  TOTAL_STEPS
+  reduceOverlayState
 } from "./controller";
 
 describe("overlay controller", () => {
@@ -21,21 +19,29 @@ describe("overlay controller", () => {
   });
 
   it("clamps navigation within tutorial bounds", () => {
-    let state = initialOverlayState;
+    let state = reduceOverlayState(initialOverlayState, {
+      type: "load_tutorial",
+      steps: [
+        { step_id: "one", text: "One" },
+        { step_id: "two", text: "Two" },
+        { step_id: "three", text: "Three" }
+      ]
+    });
     for (let index = 0; index < 20; index += 1) {
       state = reduceOverlayState(state, { type: "navigate", direction: "right" });
     }
-    expect(state.step).toBe(TOTAL_STEPS);
+    expect(state.step).toBe(3);
     for (let index = 0; index < 20; index += 1) {
       state = reduceOverlayState(state, { type: "navigate", direction: "left" });
     }
     expect(state.step).toBe(1);
   });
 
-  it("maps only left and right arrow keys", () => {
-    expect(directionForKey("ArrowLeft")).toBe("left");
-    expect(directionForKey("ArrowRight")).toBe("right");
-    expect(directionForKey("Enter")).toBeNull();
+  it("arms takeover explicitly and disarms after takeover", () => {
+    const armed = reduceOverlayState(initialOverlayState, { type: "arm_takeover" });
+    expect(armed.takeoverArmed).toBe(true);
+    const takenOver = reduceOverlayState(armed, { type: "takeover" });
+    expect(takenOver.takeoverArmed).toBe(false);
   });
 
   it("hit-tests virtual clicks against navigation buttons", () => {

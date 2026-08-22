@@ -23,7 +23,15 @@ def test_command_wraps_in_versioned_envelope():
     body = response.json()
     assert body["version"] == 1
     assert body["sequence"] >= 1
-    assert body["command"] == {"type": "move", "x": 20, "y": 40, "duration_ms": None, "direction": None}
+    assert body["command"] == {
+        "type": "move",
+        "x": 20,
+        "y": 40,
+        "duration_ms": None,
+        "direction": None,
+        "steps": None,
+        "step": None,
+    }
 
 
 def test_cli_style_navigation_command_is_valid():
@@ -39,6 +47,33 @@ def test_invalid_move_missing_y_is_rejected():
     client = TestClient(app)
 
     response = client.post("/commands", json={"type": "move", "x": 20})
+
+    assert response.status_code == 422
+
+
+def test_tutorial_steps_can_be_loaded_at_runtime():
+    client = TestClient(app)
+
+    response = client.post(
+        "/commands",
+        json={
+            "type": "load_tutorial",
+            "steps": [
+                {"step_id": "select-sketch", "text": "Select Sketch 1."},
+                {"step_id": "open-revolve", "text": "Open Revolve."},
+            ],
+            "step": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["command"]["steps"][1]["step_id"] == "open-revolve"
+
+
+def test_empty_tutorial_is_rejected():
+    client = TestClient(app)
+
+    response = client.post("/commands", json={"type": "load_tutorial", "steps": []})
 
     assert response.status_code == 422
 

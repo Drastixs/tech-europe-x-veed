@@ -22,6 +22,7 @@ export default defineContentScript({
     });
 
     ui.mount();
+    void browser.runtime.sendMessage({ channel: "onshape-assist", type: "tab.ready" });
 
     browser.runtime.onMessage.addListener((message: unknown) => {
       const candidate = message as { channel?: string; command?: DemoCommand };

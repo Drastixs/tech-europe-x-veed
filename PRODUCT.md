@@ -38,6 +38,19 @@ Understand what a video is doing, breakdown based on the video and transcript, u
 Technical specification and test videos: [Video Analysis and Narration PRD](prds/video-analytis-and-narration.md).
 
 ### Tutorial Planning & Voice Narration
+Converting the autistic, highly descriptive output into actionalbe steps, actions and lines for the frontend application to relay directly to the user. 
+
+Technical specification: [Tutorial Planning and Voice Narration PRD](prds/tutorial-planning-and-voice-narration.md).
+
 ### Computer Use & Virtual Demonstration
+Using the direct steps and actions and relaying to the frontend using h computer use pipeline along with dom manipulation to directly interact with the application. JS clicking scripts prefered to cdp. 
+
 ### Browser State Monitoring & Validation
+Being able to validate an actions has been performed correctly and recording the state using microversion id from onshape in order to rewind the current implementation for what has been accomplished. 
+
+Technical specification: [Onshape State Validation and Rollback PRD](prds/onshape-state-validation-and-rollback.md).
+
 ### Tutorial Orchestration & User Experience
+Building the UI to be as un intrusive as possible yet prefering to the user settings, for example, the hint toggle uses the voice to take the user through each action in more detail if on, if off it just describes the steps. 
+
+Technical specification: [Tutorial Orchestration and UX PRD](prds/tutorial-orchestration-and-ux.md).

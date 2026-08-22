@@ -1,57 +1,54 @@
 import { useEffect, useMemo, useReducer, useRef, type CSSProperties } from "react";
 import {
   commandBus,
-  directionForKey,
   hitTestNavigation,
   initialOverlayState,
   reduceOverlayState,
   type Rectangle
 } from "./controller";
 import type { DemoCommand } from "./protocol";
+import { isOverlayEvent, isRelevantTakeoverKey } from "./takeover";
 import "./overlay.css";
-
-const steps = [
-  "Orient the part studio.",
-  "Pick the target sketch plane.",
-  "Trace the feature boundary.",
-  "Confirm the dimension.",
-  "Preview the operation.",
-  "Apply, then inspect the result."
-];
 
 export function Overlay() {
   const [state, dispatch] = useReducer(reduceOverlayState, initialOverlayState);
   const leftRef = useRef<HTMLButtonElement>(null);
   const rightRef = useRef<HTMLButtonElement>(null);
+  const takeoverArmedRef = useRef(state.takeoverArmed);
+  takeoverArmedRef.current = state.takeoverArmed;
 
   useEffect(() => commandBus.subscribe(dispatch), []);
 
   useEffect(() => {
-    const onUserPointer = (event: Event) => {
-      if (!event.isTrusted) return;
-      dispatch({ type: "takeover" });
-    };
-    document.addEventListener("pointermove", onUserPointer, { capture: true, passive: true });
-    document.addEventListener("pointerdown", onUserPointer, { capture: true, passive: true });
-    document.addEventListener("mousemove", onUserPointer, { capture: true, passive: true });
-    document.addEventListener("mousedown", onUserPointer, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener("pointermove", onUserPointer, { capture: true });
-      document.removeEventListener("pointerdown", onUserPointer, { capture: true });
-      document.removeEventListener("mousemove", onUserPointer, { capture: true });
-      document.removeEventListener("mousedown", onUserPointer, { capture: true });
-    };
-  }, []);
+    const takeOver = (event: Event) => {
+      if (!takeoverArmedRef.current || !event.isTrusted || isOverlayEvent(event)) return;
+      if (event instanceof PointerEvent && event.button !== 0) return;
+      if (event instanceof KeyboardEvent && !isRelevantTakeoverKey(event)) return;
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const direction = directionForKey(event.key);
-      if (!direction) return;
       event.preventDefault();
-      dispatch({ type: "navigate", direction });
+      event.stopImmediatePropagation();
+      takeoverArmedRef.current = false;
+      dispatch({ type: "takeover" });
+      if (typeof browser !== "undefined") {
+        void browser.runtime.sendMessage({
+          channel: "onshape-assist",
+          event: {
+            type: "user.takeover",
+            browser_event: event.type,
+            timestamp_ms: Date.now()
+          }
+        });
+      }
     };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+
+    window.addEventListener("pointerdown", takeOver, { capture: true, passive: false });
+    window.addEventListener("touchstart", takeOver, { capture: true, passive: false });
+    window.addEventListener("keydown", takeOver, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", takeOver, { capture: true });
+      window.removeEventListener("touchstart", takeOver, { capture: true });
+      window.removeEventListener("keydown", takeOver, { capture: true });
+    };
   }, []);
 
   useEffect(() => {
@@ -104,7 +101,7 @@ export function Overlay() {
         className={`oa-callout ${state.guidanceVisible ? "is-visible" : "is-hidden"}`}
         style={calloutStyle}
       >
-        <span>{steps[state.step - 1]}</span>
+        <span>{state.steps[state.step - 1]?.text}</span>
       </div>
 
       <nav className="oa-nav" aria-label="Tutorial steps">
@@ -117,7 +114,7 @@ export function Overlay() {
         >
           ←
         </button>
-        <span className="oa-step">{state.step}/6</span>
+        <span className="oa-step">{state.step}/{state.steps.length}</span>
         <button
           ref={rightRef}
           className={state.activeDirection === "right" ? "is-active" : ""}
