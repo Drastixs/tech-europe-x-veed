@@ -36,6 +36,8 @@ export function Overlay() {
   const currentStep = state.steps[state.step - 1] ?? null;
   const narration = currentNarration(state);
   const voiceCue = currentStep ? entryVoiceCue(currentStep, state.narrationMode) : null;
+  const narrationIsActive = playbackStatus === "loading" || playbackStatus === "playing";
+  const navigationBlocked = Boolean(voiceCue?.blocking && narrationIsActive);
 
   useEffect(() => {
     const player = playerRef.current;
@@ -104,12 +106,13 @@ export function Overlay() {
 
   useEffect(() => {
     if (state.clickRevision === 0) return;
+    if (navigationBlocked) return;
     const left = rectOf(leftRef.current);
     const right = rectOf(rightRef.current);
     if (!left || !right) return;
     const direction = hitTestNavigation(state.x, state.y, left, right);
     if (direction) dispatch({ type: "navigate", direction });
-  }, [state.clickRevision, state.x, state.y]);
+  }, [navigationBlocked, state.clickRevision, state.x, state.y]);
 
   const cursorStyle = useMemo(
     () => ({
@@ -131,9 +134,6 @@ export function Overlay() {
   const playNarration = () => {
     if (narration) void playerRef.current?.play(narration.fal_elevenlabs_audio_url);
   };
-  const narrationIsActive = playbackStatus === "loading" || playbackStatus === "playing";
-  const navigationBlocked = Boolean(voiceCue?.blocking && narrationIsActive);
-
   if (!state.sessionVisible) return null;
 
   return (
