@@ -46,6 +46,7 @@ async def test_enriches_both_variants_and_uses_provider_duration(tmp_path):
 
     generator, client = service(tmp_path, handler)
     plan = TutorialPlan.model_validate(tutorial_plan())
+    plan.output_language = "en-GB"
     for variant in (plan.steps[0].narration.concise, plan.steps[0].narration.detailed):
         variant.fal_elevenlabs_audio_url = "fal://pending"
         variant.duration_ms = 0

@@ -233,7 +233,7 @@ async def enrich_plan_narration(
     generator = service or FalNarrationService()
     voice_id = _read(voice, "voice_id")
     speaking_rate = _read(voice, "speaking_rate")
-    language_code = _read(enriched, "output_language")
+    language_code = _fal_language_code(_read(enriched, "output_language"))
 
     pending: list[tuple[object, Any]] = []
     for step in _read(enriched, "steps"):
@@ -336,6 +336,13 @@ def _is_hosted_url(value: object) -> bool:
 
 def _is_number(value: object) -> bool:
     return not isinstance(value, bool) and isinstance(value, (int, float))
+
+
+def _fal_language_code(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    language = value.replace("_", "-").split("-", 1)[0].lower()
+    return language if len(language) == 2 and language.isalpha() else None
 
 
 def _required_url(value: object) -> str:
