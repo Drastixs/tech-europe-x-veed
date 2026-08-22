@@ -39,6 +39,24 @@ describe("narration playback", () => {
     expect(statuses).toContain("failed");
   });
 
+  it("ignores a stale play result after interruption", async () => {
+    let resolvePlay: (() => void) | undefined;
+    const audio = fakeAudio();
+    vi.mocked(audio.play).mockReturnValue(new Promise<void>((resolve) => {
+      resolvePlay = resolve;
+    }));
+    const statuses: string[] = [];
+    const player = new NarrationPlayer(() => audio, (status) => statuses.push(status));
+
+    const pending = player.play("voice.mp3");
+    player.stop();
+    resolvePlay?.();
+    await pending;
+
+    expect(audio.pause).toHaveBeenCalledOnce();
+    expect(statuses.at(-1)).toBe("idle");
+  });
+
   it("uses entry cue timing and blocking metadata", () => {
     const step = tutorialPlanFixture.steps[0]!;
     expect(entryVoiceCue(step, "concise")?.blocking).toBe(true);

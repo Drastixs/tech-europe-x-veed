@@ -1,24 +1,68 @@
-import { useEffect, useMemo, useReducer, useRef, type CSSProperties } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
 import {
   commandBus,
+  currentNarration,
   currentTutorialText,
   hitTestNavigation,
   initialOverlayState,
   reduceOverlayState,
   type Rectangle
 } from "./controller";
+import {
+  browserAudioFactory,
+  entryVoiceCue,
+  NarrationPlayer,
+  shouldAutoplayNarration,
+  type PlaybackStatus
+} from "./narration";
 import type { DemoCommand } from "./protocol";
 import { isOverlayEvent, isRelevantTakeoverKey } from "./takeover";
 import "./overlay.css";
 
 export function Overlay() {
   const [state, dispatch] = useReducer(reduceOverlayState, initialOverlayState);
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>("idle");
+  const playerRef = useRef<NarrationPlayer | null>(null);
+  if (!playerRef.current) {
+    playerRef.current = new NarrationPlayer(browserAudioFactory, setPlaybackStatus);
+  }
   const leftRef = useRef<HTMLButtonElement>(null);
   const rightRef = useRef<HTMLButtonElement>(null);
   const takeoverArmedRef = useRef(state.takeoverArmed);
   takeoverArmedRef.current = state.takeoverArmed;
 
   useEffect(() => commandBus.subscribe(dispatch), []);
+
+  const currentStep = state.steps[state.step - 1] ?? null;
+  const narration = currentNarration(state);
+  const voiceCue = currentStep ? entryVoiceCue(currentStep, state.narrationMode) : null;
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    if (
+      state.sessionVisible &&
+      state.guidanceVisible &&
+      currentStep &&
+      narration &&
+      shouldAutoplayNarration(currentStep, state.narrationMode)
+    ) {
+      void player.play(narration.fal_elevenlabs_audio_url);
+    } else {
+      player.stop();
+    }
+
+    return () => player.stop();
+  }, [
+    state.sessionVisible,
+    state.guidanceVisible,
+    state.plan?.tutorial_id,
+    state.step,
+    state.narrationMode,
+    currentStep,
+    narration
+  ]);
 
   useEffect(() => {
     const takeOver = (event: Event) => {
@@ -84,6 +128,12 @@ export function Overlay() {
     [state.x, state.y]
   );
 
+  const playNarration = () => {
+    if (narration) void playerRef.current?.play(narration.fal_elevenlabs_audio_url);
+  };
+  const narrationIsActive = playbackStatus === "loading" || playbackStatus === "playing";
+  const navigationBlocked = Boolean(voiceCue?.blocking && narrationIsActive);
+
   if (!state.sessionVisible) return null;
 
   return (
@@ -111,20 +161,53 @@ export function Overlay() {
           className={state.activeDirection === "left" ? "is-active" : ""}
           type="button"
           onClick={() => dispatch({ type: "navigate", direction: "left" })}
+          disabled={navigationBlocked}
           aria-label="Previous step, left arrow"
         >
           ←
         </button>
         <span className="oa-step">{state.steps.length === 0 ? "0/0" : `${state.step}/${state.steps.length}`}</span>
+        <div className="oa-narration-mode" aria-label="Narration detail">
+          <button
+            type="button"
+            className={state.narrationMode === "concise" ? "is-selected" : ""}
+            aria-pressed={state.narrationMode === "concise"}
+            onClick={() => dispatch({ type: "set_narration_mode", mode: "concise" })}
+          >
+            Brief
+          </button>
+          <button
+            type="button"
+            className={state.narrationMode === "detailed" ? "is-selected" : ""}
+            aria-pressed={state.narrationMode === "detailed"}
+            onClick={() => dispatch({ type: "set_narration_mode", mode: "detailed" })}
+          >
+            Detail
+          </button>
+        </div>
+        <button
+          className="oa-audio"
+          type="button"
+          onClick={narrationIsActive ? () => playerRef.current?.stop() : playNarration}
+          disabled={!narration}
+          aria-label={narrationIsActive ? "Stop narration" : "Play narration"}
+          title={playbackStatus === "failed" ? "Audio unavailable; tutorial text remains available" : undefined}
+        >
+          {narrationIsActive ? "■" : playbackStatus === "failed" ? "Audio off" : "♪"}
+        </button>
         <button
           ref={rightRef}
           className={state.activeDirection === "right" ? "is-active" : ""}
           type="button"
           onClick={() => dispatch({ type: "navigate", direction: "right" })}
+          disabled={navigationBlocked}
           aria-label="Next step, right arrow"
         >
           →
         </button>
+        <span className="oa-sr-only" aria-live="polite">
+          {playbackStatus === "failed" ? "Narration audio unavailable. Follow the on-screen text." : ""}
+        </span>
       </nav>
     </div>
   );

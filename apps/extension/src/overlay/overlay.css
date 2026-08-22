@@ -115,6 +115,51 @@
   box-shadow: 0 0 8px oklch(68% 0.19 252 / 26%);
 }
 
+.oa-nav button:disabled {
+  cursor: default;
+  opacity: 0.48;
+  transform: none;
+}
+
+.oa-narration-mode {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: oklch(9% 0.012 252 / 55%);
+}
+
+.oa-narration-mode button {
+  min-width: auto;
+  height: 30px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 11px;
+}
+
+.oa-narration-mode button.is-selected {
+  border-color: oklch(68% 0.19 252 / 45%);
+  background: var(--oa-accent-soft);
+  color: var(--oa-text);
+}
+
+.oa-nav .oa-audio {
+  min-width: 38px;
+  height: 34px;
+  font-size: 14px;
+}
+
+.oa-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .oa-step {
   min-width: 40px;
   color: oklch(88% 0.022 252);
