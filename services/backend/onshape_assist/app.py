@@ -4,15 +4,18 @@ import os
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from onshape_assist.analysis import fal
 from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
 from onshape_assist.analysis.pipeline import AnalysisError, analyze_video_async
 
+from .launcher_page import render_launcher_page
 from .narration import (
     NarrationConfigurationError,
     NarrationError,
@@ -254,6 +257,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Onshape Assist Relay", version="0.1.0", lifespan=lifespan)
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def launcher_home() -> HTMLResponse:
+    project_dir = Path(__file__).resolve().parents[3]
+    extension_dir = project_dir / "apps" / "extension" / ".output" / "chrome-mv3"
+    return HTMLResponse(render_launcher_page(extension_dir))
 
 
 @app.get("/health")

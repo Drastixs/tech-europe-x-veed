@@ -4,6 +4,28 @@ A Chromium MV3 extension that places a click-through assistive overlay and indep
 
 ## Run the demo
 
+### One-command launcher
+
+On Linux, run:
+
+```bash
+./start-onshape-assist.sh
+```
+
+The launcher installs missing project dependencies, builds the extension, starts the local
+FastAPI server, and opens `http://127.0.0.1:8000`.
+
+When Chromium or Chrome for Testing is installed, the launcher opens a dedicated browser
+profile with the extension preloaded. Chrome stable removed command-line unpacked extension
+loading in Chrome 137, so it opens `chrome://extensions` and shows the exact folder to select
+with **Load unpacked**. Keep the launcher terminal open while using the demo, and press `Ctrl+C`
+to stop the server.
+
+Set `ONSHAPE_ASSIST_BROWSER` to a browser executable if automatic detection does not select the
+browser you want.
+
+### Manual setup
+
 Install dependencies:
 
 ```bash
