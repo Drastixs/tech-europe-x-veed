@@ -88,9 +88,11 @@ Both variants are generated and stored for every step so switching modes at runt
         {
           "sequence": 1,
           "action_type": "move|click|double_click|drag|keypress|type|scroll|wait|selection",
+          "parameters": "action-specific parameters from the table below",
           "ui_region": "string",
           "target_label": "string|null",
           "target_description": "string",
+          "icon_description": "string|null",
           "semantic_action": "user-visible action phrasing",
           "expected_visible_result": "string",
           "preferred_activation": "dom_js|cdp|vision_only",
@@ -131,6 +133,20 @@ Both variants are generated and stored for every step so switching modes at runt
   ]
 }
 ```
+
+`parameters` is discriminated by `action_type`; fields from another action type are invalid.
+
+| Action type | Required parameters |
+| --- | --- |
+| `move` | `duration_ms` |
+| `click` | `button: primary\|secondary\|middle` |
+| `double_click` | `button`, `interval_ms` |
+| `drag` | `end_target_label`, `end_target_description`, `duration_ms` |
+| `keypress` | `key`, `modifiers: alt\|control\|meta\|shift[]`, `repeat` |
+| `type` | `text`, `clear_existing`, `submit` |
+| `scroll` | non-zero `delta_x` or `delta_y`, plus `duration_ms` |
+| `wait` | nullable `duration_ms` and `condition`; at least one must be set |
+| `selection` | non-empty `items`, `mode: replace\|add\|toggle`, `confirm` |
 
 ## System prompt
 
@@ -199,9 +215,11 @@ OUTPUT
         {
           "sequence": 1,
           "action_type": "click",
+          "parameters": { "button": "primary" },
           "ui_region": "left feature tree",
           "target_label": "Sketch 1",
           "target_description": "The Sketch 1 entry in the left feature tree.",
+          "icon_description": "A blue sketch glyph beside the Sketch 1 label.",
           "semantic_action": "Select Sketch 1 from the left feature tree.",
           "expected_visible_result": "Sketch 1 becomes highlighted.",
           "preferred_activation": "dom_js",
@@ -210,9 +228,11 @@ OUTPUT
         {
           "sequence": 2,
           "action_type": "click",
+          "parameters": { "button": "primary" },
           "ui_region": "top feature toolbar",
           "target_label": "Revolve",
           "target_description": "The Revolve tool in the top feature toolbar.",
+          "icon_description": "A profile or curved shape rotating around a vertical axis.",
           "semantic_action": "Open the Revolve tool.",
           "expected_visible_result": "The Revolve feature dialog opens for Sketch 1.",
           "preferred_activation": "dom_js",

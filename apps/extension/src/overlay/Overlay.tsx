@@ -15,7 +15,7 @@ import {
   shouldAutoplayNarration,
   type PlaybackStatus
 } from "./narration";
-import type { DemoCommand } from "./protocol";
+import type { OverlayCommand } from "./protocol";
 import { isOverlayEvent, isRelevantTakeoverKey } from "./takeover";
 import "./overlay.css";
 
@@ -219,6 +219,6 @@ function rectOf(element: HTMLElement | null): Rectangle | null {
   return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
 }
 
-export function dispatchOverlayCommand(command: DemoCommand) {
+export function dispatchOverlayCommand(command: OverlayCommand) {
   commandBus.dispatch(command);
 }

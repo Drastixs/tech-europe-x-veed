@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 readonly PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly EXTENSION_DIR="${PROJECT_DIR}/apps/extension/.output/chrome-mv3"
+readonly EXTENSION_DIR="${PROJECT_DIR}/apps/extension/output/chrome-mv3"
 readonly SERVER_URL="http://127.0.0.1:8000"
 readonly ONSHAPE_URL="https://cad.onshape.com/documents"
 readonly SERVER_LOG="/tmp/onshape-assist-server-${UID}.log"

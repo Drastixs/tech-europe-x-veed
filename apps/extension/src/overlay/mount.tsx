@@ -1,11 +1,11 @@
 import { createRoot, type Root } from "react-dom/client";
 import { dispatchOverlayCommand, Overlay } from "./Overlay";
-import type { DemoCommand } from "./protocol";
+import type { OverlayCommand } from "./protocol";
 
 export type OverlayMount = {
   element: HTMLDivElement;
   root: Root;
-  dispatch: (command: DemoCommand) => void;
+  dispatch: (command: OverlayCommand) => void;
   unmount: () => void;
 };
 

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npm run build --workspace=@onshape-assist/extension",
     "build:preview": "npm run build:preview --workspace=@onshape-assist/extension",
-    "check": "npm run check --workspace=@onshape-assist/extension && uv run --project services/backend --extra dev pytest",
+    "check": "npm run check --workspace=@onshape-assist/extension && uv --directory services/backend run --extra dev python -m pytest",
     "dev:extension": "npm run dev --workspace=@onshape-assist/extension"
   }
 }

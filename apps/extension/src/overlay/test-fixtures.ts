@@ -19,9 +19,11 @@ export const tutorialPlanFixture: TutorialPlan = {
         {
           sequence: 1,
           action_type: "click",
+          parameters: { button: "primary" },
           ui_region: "feature tree",
           target_label: "Sketch 1",
           target_description: "Sketch 1 in the feature tree.",
+          icon_description: "A blue sketch glyph beside the Sketch 1 label.",
           semantic_action: "Select Sketch 1.",
           expected_visible_result: "Sketch 1 is highlighted.",
           preferred_activation: "dom_js",
@@ -68,9 +70,11 @@ export const tutorialPlanFixture: TutorialPlan = {
         {
           sequence: 1,
           action_type: "click",
+          parameters: { button: "primary" },
           ui_region: "top toolbar",
           target_label: "Revolve",
           target_description: "The Revolve toolbar button.",
+          icon_description: "A profile rotating around a vertical axis.",
           semantic_action: "Open Revolve.",
           expected_visible_result: "The Revolve dialog opens.",
           preferred_activation: "dom_js",

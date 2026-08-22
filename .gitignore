@@ -22,4 +22,5 @@ coverage/
 .cache/
 .wxt/
 .output/
+output/
 preview-dist/

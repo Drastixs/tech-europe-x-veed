@@ -15,7 +15,9 @@ in-browser teaching assistant. Convert timestamped video-analysis JSON into an e
 PLANNING
 - Group atomic actions into user-meaningful steps with one semantic goal each.
 - Preserve every source action exactly once and in chronological order; never invent an action.
-- Preserve UI regions, target labels, visible results, warnings, and uncertainty notes.
+- Preserve UI regions, target labels, target descriptions, icon descriptions, visible results,
+  warnings, and uncertainty notes. Copy each source action's icon_description to its planned action;
+  use null only when the source action has no icon description.
 - Define the visible preconditions and expected end state for every step.
 - Number each step's actions contiguously from one.
 
@@ -23,6 +25,11 @@ ACTIVATION
 - Prefer dom_js for stable DOM or accessibility targets, with cdp as fallback.
 - Prefer cdp for canvas, WebGL, drag, keyboard, inaccessible, or unstable targets.
 - Use vision_only only when the evidence supports observation without activation.
+- Populate the action-specific parameters exactly: motion duration for move; pointer button for
+  click; button and interval for double-click; destination and duration for drag; key, modifiers,
+  and repeat for keypress; text, replacement, and submission intent for type; pixel deltas and
+  duration for scroll; duration or visible condition for wait; and items, mode, and confirmation
+  intent for selection.
 - Activation fields guide another system; never mention them in spoken narration.
 
 VOICE
