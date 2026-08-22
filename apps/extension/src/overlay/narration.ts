@@ -1,5 +1,6 @@
 import type { TutorialStep, VoiceCue } from "./protocol";
 import type { NarrationMode } from "./controller";
+import type { TutorialStepRuntimeStatus } from "./protocol";
 
 export type PlaybackStatus = "idle" | "loading" | "playing" | "failed";
 
@@ -75,4 +76,12 @@ export function shouldAutoplayNarration(step: TutorialStep, mode: NarrationMode)
   const cue = entryVoiceCue(step, mode);
   if (!cue) return true;
   return cue.start_policy === "play_before_motion" || cue.start_policy === "play_with_motion";
+}
+
+export function shouldPlayStepNarration(
+  status: TutorialStepRuntimeStatus | null,
+  step: TutorialStep,
+  mode: NarrationMode
+): boolean {
+  return status === "demonstrating" && shouldAutoplayNarration(step, mode);
 }

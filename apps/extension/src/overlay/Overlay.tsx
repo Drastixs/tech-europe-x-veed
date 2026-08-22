@@ -12,11 +12,11 @@ import {
   browserAudioFactory,
   entryVoiceCue,
   NarrationPlayer,
-  shouldAutoplayNarration,
+  shouldPlayStepNarration,
   type PlaybackStatus
 } from "./narration";
 import type { OverlayCommand } from "./protocol";
-import { isOverlayEvent, isRelevantTakeoverKey } from "./takeover";
+import { isLearnerTakeoverEvent } from "./takeover";
 import "./overlay.css";
 
 export function Overlay() {
@@ -49,7 +49,7 @@ export function Overlay() {
       state.guidanceVisible &&
       currentStep &&
       narration &&
-      shouldAutoplayNarration(currentStep, state.narrationMode)
+      shouldPlayStepNarration(state.runtimeStatus, currentStep, state.narrationMode)
     ) {
       void player.play(narration.fal_elevenlabs_audio_url);
     } else {
@@ -63,15 +63,15 @@ export function Overlay() {
     state.plan?.tutorial_id,
     state.step,
     state.narrationMode,
+    state.runtimeStatus,
+    state.demonstrationRevision,
     currentStep,
     narration
   ]);
 
   useEffect(() => {
     const takeOver = (event: Event) => {
-      if (!takeoverArmedRef.current || !event.isTrusted || isOverlayEvent(event)) return;
-      if (event instanceof PointerEvent && event.button !== 0) return;
-      if (event instanceof KeyboardEvent && !isRelevantTakeoverKey(event)) return;
+      if (!takeoverArmedRef.current || !isLearnerTakeoverEvent(event)) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -91,11 +91,9 @@ export function Overlay() {
 
     window.addEventListener("pointerdown", takeOver, { capture: true, passive: false });
     window.addEventListener("touchstart", takeOver, { capture: true, passive: false });
-    window.addEventListener("keydown", takeOver, { capture: true });
     return () => {
       window.removeEventListener("pointerdown", takeOver, { capture: true });
       window.removeEventListener("touchstart", takeOver, { capture: true });
-      window.removeEventListener("keydown", takeOver, { capture: true });
     };
   }, []);
 
@@ -136,6 +134,8 @@ export function Overlay() {
     if (narration) void playerRef.current?.play(narration.fal_elevenlabs_audio_url);
   };
 
+  const runtimeText = runtimeStatusText(state.runtimeStatus, state.runtimeMessage);
+
   const requestStepRedo = async () => {
     if (!currentStep || !state.plan || redoStatus === "requesting") return;
 
@@ -172,8 +172,10 @@ export function Overlay() {
       <div
         className={`oa-callout ${state.guidanceVisible ? "is-visible" : "is-hidden"}`}
         style={calloutStyle}
+        role="status"
+        aria-live="polite"
       >
-        <span>{currentTutorialText(state)}</span>
+        <span>{runtimeText ?? currentTutorialText(state)}</span>
       </div>
 
       <nav className="oa-nav" aria-label="Tutorial steps">
@@ -210,7 +212,10 @@ export function Overlay() {
           className="oa-redo"
           type="button"
           onClick={() => void requestStepRedo()}
-          disabled={!currentStep || navigationBlocked || redoStatus === "requesting"}
+          disabled={
+            !currentStep || navigationBlocked || redoStatus === "requesting" ||
+            state.runtimeStatus === "demonstrating" || state.runtimeStatus === "restoring"
+          }
           aria-label={currentStep ? `Redo step ${state.step}: ${currentStep.goal}` : "Redo current step"}
           title={redoStatus === "failed" ? "Could not request the redo. Try again." : "Redo current step with the agent"}
         >
@@ -274,4 +279,15 @@ export function createStepRedoRequestedEvent(
     step_number: stepNumber,
     timestamp_ms: timestampMs
   };
+}
+
+function runtimeStatusText(
+  status: typeof initialOverlayState.runtimeStatus,
+  message: string | null
+): string | null {
+  if (status === "demo_visible") return "Click when you’re ready to try.";
+  if (status === "restoring") return "Resetting the demo state…";
+  if (status === "learner_attempt") return "Your turn.";
+  if (status === "failed") return message || "I couldn’t complete that step. Try redo.";
+  return null;
 }

@@ -3,7 +3,8 @@ import type {
   NarrationVariant,
   OverlayCommand,
   TutorialPlan,
-  TutorialStep
+  TutorialStep,
+  TutorialStepRuntimeStatus
 } from "./protocol";
 
 export type NarrationMode = "concise" | "detailed";
@@ -21,6 +22,9 @@ export type OverlayState = {
   steps: TutorialStep[];
   narrationMode: NarrationMode;
   takeoverArmed: boolean;
+  runtimeStatus: TutorialStepRuntimeStatus | null;
+  runtimeMessage: string | null;
+  demonstrationRevision: number;
   lastCommand: string;
 };
 
@@ -37,6 +41,9 @@ export const initialOverlayState: OverlayState = {
   steps: [],
   narrationMode: "concise",
   takeoverArmed: false,
+  runtimeStatus: null,
+  runtimeMessage: null,
+  demonstrationRevision: 0,
   lastCommand: "ready"
 };
 
@@ -113,7 +120,27 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
         step: Math.min(action.plan.steps.length, Math.max(1, action.step ?? 1)),
         sessionVisible: true,
         guidanceVisible: true,
+        runtimeStatus: null,
+        runtimeMessage: null,
         lastCommand: "load tutorial"
+      };
+    }
+    case "tutorial_step_status": {
+      const stepIndex = state.steps.findIndex((step) => step.step_id === action.step_id);
+      const demonstrating = action.status === "demonstrating";
+      const demoVisible = action.status === "demo_visible";
+      return {
+        ...state,
+        step: stepIndex >= 0 ? stepIndex + 1 : state.step,
+        runtimeStatus: action.status,
+        runtimeMessage: action.message ?? null,
+        demonstrationRevision: demonstrating
+          ? state.demonstrationRevision + 1
+          : state.demonstrationRevision,
+        sessionVisible: true,
+        guidanceVisible: true,
+        takeoverArmed: demoVisible,
+        lastCommand: action.status
       };
     }
     case "arm_takeover":

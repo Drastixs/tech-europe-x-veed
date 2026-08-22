@@ -17,6 +17,14 @@ export function isRelevantTakeoverKey(event: KeyboardEvent): boolean {
   return isEditableTarget(event.target) && EDITABLE_NAVIGATION_KEYS.has(event.key);
 }
 
+export function isLearnerTakeoverEvent(event: Event): boolean {
+  if (!event.isTrusted || isOverlayEvent(event)) return false;
+  if (typeof PointerEvent !== "undefined" && event instanceof PointerEvent) {
+    return event.button === 0;
+  }
+  return typeof TouchEvent !== "undefined" && event instanceof TouchEvent;
+}
+
 export function isOverlayEvent(event: Event): boolean {
   return event.composedPath().some(
     (target) => target instanceof HTMLElement && target.id === "onshape-assist-root"

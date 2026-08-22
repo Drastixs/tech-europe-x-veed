@@ -133,6 +133,22 @@ export type TutorialPlan = {
   steps: TutorialStep[];
 };
 
+export type TutorialStepRuntimeStatus =
+  | "demonstrating"
+  | "demo_visible"
+  | "restoring"
+  | "learner_attempt"
+  | "failed";
+
+export type TutorialStepStatusCommand = {
+  type: "tutorial_step_status";
+  session_id: string;
+  tutorial_id: string;
+  step_id: string;
+  status: TutorialStepRuntimeStatus;
+  message?: string | null;
+};
+
 export type OverlayCommand =
   | { type: "show" }
   | { type: "hide" }
@@ -141,7 +157,8 @@ export type OverlayCommand =
   | { type: "navigate"; direction: Direction }
   | { type: "load_tutorial"; plan: TutorialPlan; step?: number | null }
   | { type: "arm_takeover" }
-  | { type: "disarm_takeover" };
+  | { type: "disarm_takeover" }
+  | TutorialStepStatusCommand;
 
 export type PixelPoint = { x: number; y: number };
 
@@ -213,6 +230,12 @@ export const isDemoEnvelope = (value: unknown): value is DemoEnvelope => {
     case "arm_takeover":
     case "disarm_takeover":
       return true;
+    case "tutorial_step_status":
+      return isNonEmptyString(command.session_id) &&
+        isNonEmptyString(command.tutorial_id) &&
+        isNonEmptyString(command.step_id) &&
+        isTutorialStepRuntimeStatus(command.status) &&
+        (command.message == null || isNonEmptyString(command.message));
     case "move":
       return isNonNegativeNumber(command.x) && isNonNegativeNumber(command.y) &&
         (command.duration_ms == null || isNonNegativeNumber(command.duration_ms));
@@ -243,6 +266,10 @@ export const isCaptureObservationCommand = (
 export const isExecuteActionCommand = (
   command: DemoCommand
 ): command is ExecuteActionCommand => command.type === "execute_action";
+
+export const isTutorialStepStatusCommand = (
+  command: DemoCommand
+): command is TutorialStepStatusCommand => command.type === "tutorial_step_status";
 
 const isTutorialPlan = (value: unknown): value is TutorialPlan => {
   if (!isRecord(value)) return false;
@@ -401,3 +428,6 @@ const isNonNegativeNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value) && value >= 0;
 const isPositiveInteger = (value: unknown): value is number =>
   Number.isInteger(value) && Number(value) >= 1;
+const isTutorialStepRuntimeStatus = (value: unknown): value is TutorialStepRuntimeStatus =>
+  value === "demonstrating" || value === "demo_visible" || value === "restoring" ||
+  value === "learner_attempt" || value === "failed";
