@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from onshape_assist.analysis import fal
+from onshape_assist.analysis import fal, prompts
 from onshape_assist.analysis.models import AnalysisRequest
 from onshape_assist.analysis.pipeline import (
     AnalysisError,
@@ -134,6 +134,33 @@ def test_stringy_null_fields_are_coerced():
     assert coerced.mouse_button is None
     assert coerced.target_label is None
     assert coerced.action_type == "double_click"
+
+
+def test_scoped_prompt_injects_hard_time_bounds():
+    # Prompt-building logic can be verified for free (no API call): a scoped
+    # request must inject the numeric window and the hard in-range rule.
+    request = AnalysisRequest(
+        video_url="https://www.youtube.com/watch?v=abc",
+        analysis_scope={"start_ms": 46000, "end_ms": 166000},
+    )
+    prompt = prompts.primary_user_prompt(request)
+
+    assert "46000" in prompt and "166000" in prompt
+    assert "HARD RULE" in prompt
+    assert "wait" in prompt  # no-gap coverage instruction
+
+
+def test_unscoped_prompt_requests_full_video():
+    request = AnalysisRequest(video_url="https://www.youtube.com/watch?v=abc")
+    prompt = prompts.primary_user_prompt(request)
+    assert "ENTIRE video" in prompt
+
+
+def test_system_prompt_correlates_audio_and_visual():
+    request = AnalysisRequest(video_url="https://www.youtube.com/watch?v=abc")
+    system = prompts.system_prompt(request)
+    assert "AUDIO-VISUAL CORRELATION" in system
+    assert "cross-reference" in system.lower()
 
 
 def test_invalid_json_raises_analysis_error():
