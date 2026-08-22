@@ -7,12 +7,17 @@ import {
   type TutorialStepStatusCommand
 } from "../src/overlay/protocol";
 import { createTutorialFromVideo } from "../src/popup/tutorial-api";
+import {
+  loadTutorialLibrary,
+  saveTutorial,
+  tutorialTitle
+} from "../src/popup/tutorial-library";
 
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
 const KEEPALIVE_INTERVAL_MS = 20_000;
 const LEARNER_OBSERVATION_INTERVAL_MS = 1_000;
-const DEMONSTRATE_STEP_URL = "http://127.0.0.1:8000/tutorials/demonstrate-step";
+const DEMONSTRATE_STEP_URL = "http://127.0.0.1:8000/computer-use/demonstrate-step";
 
 export default defineBackground(() => {
   let socket: WebSocket | null = null;
@@ -139,15 +144,24 @@ export default defineBackground(() => {
     if (!tab?.url) throw new Error("No active Onshape document tab is available");
     tutorialStep = step;
     stopLearnerMonitoring();
+    const sessionId = runtimeSession?.session_id ?? `demo-${tutorialPlan.tutorial_id}`;
+    const demonstratingStatus: TutorialStepStatusCommand = {
+      type: "tutorial_step_status",
+      session_id: sessionId,
+      tutorial_id: tutorialPlan.tutorial_id,
+      step_id: plannedStep.step_id,
+      status: "demonstrating",
+      message: null
+    };
+    applyRuntimeStatus(demonstratingStatus);
+    await sendToRegisteredTab(demonstratingStatus);
 
     try {
       const response = await fetch(DEMONSTRATE_STEP_URL, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          plan: tutorialPlan,
-          step,
-          document_url: tab.url,
+          step: plannedStep,
           execute: true
         })
       });
@@ -155,6 +169,16 @@ export default defineBackground(() => {
         const detail = await response.text();
         throw new Error(detail || `Step demonstration failed (${response.status})`);
       }
+      const result = await response.json() as { success?: boolean; reason?: string | null };
+      if (!result.success) throw new Error(result.reason || "Step demonstration failed");
+
+      const visibleStatus: TutorialStepStatusCommand = {
+        ...demonstratingStatus,
+        status: "demo_visible"
+      };
+      applyRuntimeStatus(visibleStatus);
+      await sendToRegisteredTab(visibleStatus);
+      await sendToRegisteredTab({ type: "arm_takeover" });
     } catch (error) {
       await sendToRegisteredTab({
         type: "tutorial_step_status",
@@ -248,13 +272,52 @@ export default defineBackground(() => {
       type?: string;
       event?: unknown;
       videoUrl?: unknown;
+      tutorialId?: unknown;
     };
     if (
       candidate.channel === "onshape-assist" &&
       candidate.type === "tutorial.create" &&
       typeof candidate.videoUrl === "string"
     ) {
-      return createTutorialFromVideo(candidate.videoUrl, crypto.randomUUID());
+      return (async () => {
+        const result = await createTutorialFromVideo(candidate.videoUrl as string, crypto.randomUUID());
+        if (!result.ok) return result;
+        const tutorial = {
+          tutorialId: result.tutorialId,
+          videoUrl: candidate.videoUrl as string,
+          title: tutorialTitle(result.plan),
+          createdAt: new Date().toISOString(),
+          plan: result.plan
+        };
+        await saveTutorial(browser.storage.local, tutorial);
+        return { ...result, tutorial };
+      })();
+    }
+    if (candidate.channel === "onshape-assist" && candidate.type === "tutorial.list") {
+      return loadTutorialLibrary(browser.storage.local)
+        .then((tutorials) => ({ ok: true as const, tutorials }))
+        .catch(() => ({ ok: false as const, message: "Saved tutorials could not be loaded." }));
+    }
+    if (
+      candidate.channel === "onshape-assist" &&
+      candidate.type === "tutorial.replay" &&
+      typeof candidate.tutorialId === "string"
+    ) {
+      return (async () => {
+        const tutorials = await loadTutorialLibrary(browser.storage.local);
+        const tutorial = tutorials.find((item) => item.tutorialId === candidate.tutorialId);
+        if (!tutorial) return { ok: false as const, message: "That saved tutorial is no longer available." };
+        tutorialPlan = tutorial.plan;
+        tutorialStep = 1;
+        runtimeSession = null;
+        stopLearnerMonitoring();
+        await sendToRegisteredTab({ type: "load_tutorial", plan: tutorial.plan, step: 1 });
+        await runTutorialStep(1);
+        return { ok: true as const };
+      })().catch((error) => ({
+        ok: false as const,
+        message: error instanceof Error ? error.message : "The tutorial could not be replayed."
+      }));
     }
     if (candidate.channel !== "onshape-assist" || sender.tab?.id === undefined) return;
     if (candidate.type === "tab.ready") void registerTab(sender.tab.id);

@@ -88,7 +88,7 @@
       },
       {
         "step_id": "draw-centered-circle",
-        "goal": "Draw a circle centered on the sketch origin.",
+        "goal": "Draw a centered circle and constrain it to a 25 mm radius.",
         "preconditions": [
           "A sketch is active on the Top plane and the origin is visible."
         ],
@@ -137,16 +137,78 @@
             "parameters": {
               "button": "primary"
             }
+          },
+          {
+            "sequence": 4,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch toolbar",
+            "target_label": "Dimension",
+            "target_description": "The Sketch dimension tool in the sketch toolbar.",
+            "icon_description": "A dimension icon, often showing a diagonal measurement.",
+            "semantic_action": "Activate the dimension tool.",
+            "expected_visible_result": "The cursor is ready to select sketch geometry for a dimension.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 5,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch canvas",
+            "target_label": "Circle edge",
+            "target_description": "The circumference of the newly drawn circle, away from the origin and axes.",
+            "icon_description": null,
+            "semantic_action": "Select the circle for dimensional constraint.",
+            "expected_visible_result": "A diameter or radial dimension preview follows the pointer.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 6,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch canvas above and right of the circle",
+            "target_label": null,
+            "target_description": "A clear blank point just above and to the right of the circle where the dimension label will be readable.",
+            "icon_description": null,
+            "semantic_action": "Place the circle dimension.",
+            "expected_visible_result": "A dimension value editor appears.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 7,
+            "action_type": "type",
+            "parameters": {
+              "text": "50 mm",
+              "clear_existing": true,
+              "submit": true
+            },
+            "ui_region": "floating dimension editor",
+            "target_label": null,
+            "target_description": "The active numeric dimension input for the selected circle.",
+            "icon_description": null,
+            "semantic_action": "Set the circle diameter to 50 mm, constraining its radius to 25 mm.",
+            "expected_visible_result": "The circle shows a 50 mm diameter dimension and is constrained to a 25 mm radius.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           }
         ],
         "narration": {
           "concise": {
-            "text": "Draw a circle centered on the origin.",
+            "text": "Draw the circle at the origin, then dimension it to a 25 millimetre radius.",
             "fal_elevenlabs_audio_url": "pending://tts/draw-centered-circle/concise",
             "duration_ms": 0
           },
           "detailed": {
-            "text": "I will choose the circle tool, anchor its center to the origin, and set a visible radius.",
+            "text": "I will draw a center-point circle on the origin, apply a diameter dimension of 50 millimetres, and thereby constrain its radius to 25 millimetres.",
             "fal_elevenlabs_audio_url": "pending://tts/draw-centered-circle/detailed",
             "duration_ms": 0
           }
@@ -168,9 +230,9 @@
           "validation_failed": "The circle was not created correctly, so I will pause.",
           "user_interrupt": "You took control, so I will stop."
         },
-        "expected_end_state": "A circle centered at the sketch origin exists.",
+        "expected_end_state": "A centered circle is constrained by a 50 mm diameter dimension, giving a 25 mm radius.",
         "uncertainties": [
-          "The exact visual scale depends on the current viewport."
+          "Onshape may display circle dimensions as diameter rather than radius; 50 mm diameter equals 25 mm radius."
         ]
       },
       {
@@ -231,58 +293,150 @@
         ]
       },
       {
-        "step_id": "open-revolve",
-        "goal": "Open Revolve using the circle sketch.",
+        "step_id": "create-front-plane-axis",
+        "goal": "Create a central construction axis in a sketch on the Front plane.",
         "preconditions": [
-          "Sketch 1 contains the centered circle and is committed."
+          "Sketch 1 is committed and contains the dimensioned circle."
         ],
         "actions": [
           {
             "sequence": 1,
-            "ui_region": "left feature tree",
-            "target_label": "Sketch 1",
-            "target_description": "Sketch 1 in the left feature tree.",
-            "icon_description": "A sketch glyph beside the label Sketch 1.",
-            "semantic_action": "Select Sketch 1 as the revolve profile.",
-            "expected_visible_result": "Sketch 1 is highlighted.",
-            "preferred_activation": "dom_js",
-            "fallback_activation": "cdp",
             "action_type": "click",
             "parameters": {
               "button": "primary"
-            }
+            },
+            "ui_region": "left feature tree",
+            "target_label": "Front",
+            "target_description": "The Front origin plane entry in the left feature tree.",
+            "icon_description": "A plane icon beside the label Front.",
+            "semantic_action": "Select the Front plane.",
+            "expected_visible_result": "The Front plane is highlighted.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           },
           {
             "sequence": 2,
-            "ui_region": "top feature toolbar",
-            "target_label": "Revolve",
-            "target_description": "The Revolve feature button in the top toolbar.",
-            "icon_description": "A curved rotational arrow around a profile.",
-            "semantic_action": "Open the Revolve feature dialog.",
-            "expected_visible_result": "The Revolve dialog opens with Sketch 1 as its profile.",
-            "preferred_activation": "dom_js",
-            "fallback_activation": "cdp",
             "action_type": "click",
             "parameters": {
               "button": "primary"
-            }
+            },
+            "ui_region": "top feature toolbar",
+            "target_label": "Sketch",
+            "target_description": "The Sketch button in the top Part Studio toolbar.",
+            "icon_description": "A sketch/page icon with the label Sketch.",
+            "semantic_action": "Create a second sketch on the Front plane.",
+            "expected_visible_result": "Sketch mode opens looking normal to the Front plane.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 3,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch toolbar",
+            "target_label": "Construction",
+            "target_description": "The Construction toggle in the sketch toolbar.",
+            "icon_description": "A dashed-line construction icon.",
+            "semantic_action": "Enable construction geometry.",
+            "expected_visible_result": "Construction mode is active.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 4,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch toolbar",
+            "target_label": "Line",
+            "target_description": "The Line tool in the sketch toolbar.",
+            "icon_description": "A diagonal line segment icon.",
+            "semantic_action": "Activate the line tool.",
+            "expected_visible_result": "The line tool awaits its first point.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 5,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch canvas left of origin",
+            "target_label": null,
+            "target_description": "A point on the horizontal sketch axis well to the left of the origin.",
+            "icon_description": null,
+            "semantic_action": "Place the first endpoint of the revolution axis.",
+            "expected_visible_result": "A construction-line preview starts.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 6,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "sketch canvas right of origin",
+            "target_label": null,
+            "target_description": "A point on the same horizontal sketch axis well to the right of the origin, making the line pass exactly through the origin.",
+            "icon_description": null,
+            "semantic_action": "Place the second endpoint of the central revolution axis.",
+            "expected_visible_result": "A horizontal construction line passes through the origin.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 7,
+            "action_type": "keypress",
+            "parameters": {
+              "key": "Escape",
+              "modifiers": [],
+              "repeat": 1
+            },
+            "ui_region": "sketch canvas",
+            "target_label": null,
+            "target_description": "The active sketch canvas after drawing the construction line.",
+            "icon_description": null,
+            "semantic_action": "Exit the line tool.",
+            "expected_visible_result": "The construction axis remains and no new line preview is active.",
+            "preferred_activation": "cdp",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 8,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "upper-right sketch controls",
+            "target_label": "Accept sketch",
+            "target_description": "The green checkmark that accepts the active Front-plane sketch.",
+            "icon_description": "A green checkmark.",
+            "semantic_action": "Finish the axis sketch.",
+            "expected_visible_result": "Sketch 2 is committed in the feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           }
         ],
         "narration": {
           "concise": {
-            "text": "Select the sketch and open Revolve.",
-            "fal_elevenlabs_audio_url": "pending://tts/open-revolve/concise",
+            "text": "On the Front plane, draw a horizontal construction axis through the origin.",
+            "fal_elevenlabs_audio_url": "pending://tts/create-front-plane-axis/concise",
             "duration_ms": 0
           },
           "detailed": {
-            "text": "I will select Sketch 1 and open the Revolve feature.",
-            "fal_elevenlabs_audio_url": "pending://tts/open-revolve/detailed",
+            "text": "I will open a second sketch on the Front plane, enable construction geometry, and draw a horizontal centerline through the origin. This line lies on the intersection with the Top plane, so it can drive the revolve.",
+            "fal_elevenlabs_audio_url": "pending://tts/create-front-plane-axis/detailed",
             "duration_ms": 0
           }
         },
         "voice_cues": [
           {
-            "cue_id": "revolve-intro",
+            "cue_id": "front-axis-intro",
             "phase": "before_step",
             "action_sequence": 1,
             "variant": "both",
@@ -292,77 +446,123 @@
           }
         ],
         "dynamic_corrections": {
-          "retry": "I will locate the Revolve tool again.",
-          "target_relocated": "The toolbar changed, so I will relocate Revolve.",
-          "validation_failed": "The Revolve dialog did not open, so I will pause.",
+          "retry": "I will locate the Front plane and construction controls again.",
+          "target_relocated": "The sketch controls moved, so I will relocate them.",
+          "validation_failed": "The centerline was not created through the origin, so I will pause.",
           "user_interrupt": "You took control, so I will stop."
         },
-        "expected_end_state": "The Revolve dialog is open with the circle sketch selected.",
+        "expected_end_state": "Sketch 2 contains a horizontal construction line through the origin on the Front plane.",
         "uncertainties": [
-          "Revolve may be inside a toolbar dropdown on narrow windows."
+          "Construction and Line controls may be grouped differently at narrow widths."
         ]
       },
       {
         "step_id": "revolve-around-center-axis",
-        "goal": "Revolve the circle around its vertical center axis and accept the feature.",
+        "goal": "Revolve the dimensioned circle around the construction axis from Sketch 2.",
         "preconditions": [
-          "The Revolve dialog is open and Sketch 1 is the selected profile."
+          "Sketch 1 contains the 50 mm diameter circle.",
+          "Sketch 2 contains the central construction axis."
         ],
         "actions": [
           {
             "sequence": 1,
-            "ui_region": "Revolve dialog",
-            "target_label": "Revolve axis",
-            "target_description": "The empty Revolve axis selection field in the Revolve dialog.",
-            "icon_description": null,
-            "semantic_action": "Activate axis selection.",
-            "expected_visible_result": "The dialog is waiting for an axis selection.",
-            "preferred_activation": "dom_js",
-            "fallback_activation": "cdp",
             "action_type": "click",
             "parameters": {
               "button": "primary"
-            }
+            },
+            "ui_region": "left feature tree",
+            "target_label": "Sketch 1",
+            "target_description": "Sketch 1 containing the dimensioned circle in the feature tree.",
+            "icon_description": "A sketch glyph beside Sketch 1.",
+            "semantic_action": "Select the circle profile sketch.",
+            "expected_visible_result": "Sketch 1 is highlighted.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           },
           {
             "sequence": 2,
-            "ui_region": "center of sketch canvas",
-            "target_label": "Vertical sketch axis",
-            "target_description": "The vertical green sketch center axis passing through the circle center and origin.",
-            "icon_description": "A vertical green construction axis through the origin.",
-            "semantic_action": "Choose the vertical center axis as the revolve axis.",
-            "expected_visible_result": "A full 360-degree revolved preview appears.",
-            "preferred_activation": "vision_only",
-            "fallback_activation": "cdp",
             "action_type": "click",
             "parameters": {
               "button": "primary"
-            }
+            },
+            "ui_region": "top feature toolbar",
+            "target_label": "Revolve",
+            "target_description": "The Revolve feature button in the top toolbar.",
+            "icon_description": "A curved rotational arrow around a profile.",
+            "semantic_action": "Open Revolve with Sketch 1 as the profile.",
+            "expected_visible_result": "The Revolve dialog opens.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           },
           {
             "sequence": 3,
-            "ui_region": "Revolve dialog",
-            "target_label": "Accept",
-            "target_description": "The green checkmark button that accepts the Revolve feature.",
-            "icon_description": "A green checkmark at the top of the Revolve dialog.",
-            "semantic_action": "Commit the Revolve feature.",
-            "expected_visible_result": "The Revolve dialog closes and Revolve 1 appears in the feature tree.",
-            "preferred_activation": "dom_js",
-            "fallback_activation": "cdp",
             "action_type": "click",
             "parameters": {
               "button": "primary"
-            }
+            },
+            "ui_region": "Revolve dialog",
+            "target_label": "Revolve axis",
+            "target_description": "The empty Revolve axis selection field.",
+            "icon_description": null,
+            "semantic_action": "Activate axis selection.",
+            "expected_visible_result": "The dialog waits for an axis.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 4,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "canvas and visible Sketch 2 geometry",
+            "target_label": "Construction line",
+            "target_description": "The horizontal construction line through the origin from Sketch 2.",
+            "icon_description": "A dashed horizontal sketch line through the origin.",
+            "semantic_action": "Select the central construction line as the revolution axis.",
+            "expected_visible_result": "A 360-degree revolved preview appears.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 5,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "Revolve dialog",
+            "target_label": "Full",
+            "target_description": "The Full revolution option or 360-degree angle control in the Revolve dialog.",
+            "icon_description": null,
+            "semantic_action": "Set a full 360-degree revolve.",
+            "expected_visible_result": "The preview shows a complete revolution.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 6,
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            },
+            "ui_region": "Revolve dialog",
+            "target_label": "Accept",
+            "target_description": "The green checkmark that accepts the Revolve feature.",
+            "icon_description": "A green checkmark.",
+            "semantic_action": "Commit the Revolve feature.",
+            "expected_visible_result": "Revolve 1 appears in the feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
           }
         ],
         "narration": {
           "concise": {
-            "text": "Use the vertical center axis and accept the revolve.",
+            "text": "Revolve the circle through 360 degrees around the construction axis.",
             "fal_elevenlabs_audio_url": "pending://tts/revolve-around-center-axis/concise",
             "duration_ms": 0
           },
           "detailed": {
-            "text": "I will choose the vertical axis through the circle center, preview a full revolve, and accept it.",
+            "text": "I will select the dimensioned circle profile, open Revolve, choose the construction line from Sketch 2 as the central axis, set a full 360-degree revolution, and accept the feature.",
             "fal_elevenlabs_audio_url": "pending://tts/revolve-around-center-axis/detailed",
             "duration_ms": 0
           }
@@ -379,14 +579,14 @@
           }
         ],
         "dynamic_corrections": {
-          "retry": "I will locate the center axis again.",
-          "target_relocated": "The view moved, so I will relocate the axis.",
+          "retry": "I will locate the profile and construction axis again.",
+          "target_relocated": "The selection moved, so I will relocate it.",
           "validation_failed": "The revolve preview is not valid, so I will pause.",
           "user_interrupt": "You took control, so I will stop."
         },
-        "expected_end_state": "A completed 360-degree Revolve feature exists around the circle's center axis.",
+        "expected_end_state": "Revolve 1 is committed from the dimensioned circle around Sketch 2\u2019s central construction axis.",
         "uncertainties": [
-          "The axis color may vary when highlighted."
+          "Sketch 2 may need to be made visible before its construction line can be selected."
         ]
       }
     ]
