@@ -93,10 +93,10 @@ export type TutorialPlan = {
 export type DemoCommand =
   | { type: "show" }
   | { type: "hide" }
-  | { type: "move"; x: number; y: number; duration_ms?: number }
+  | { type: "move"; x: number; y: number; duration_ms?: number | null }
   | { type: "click" }
   | { type: "navigate"; direction: Direction }
-  | { type: "load_tutorial"; plan: TutorialPlan; step?: number }
+  | { type: "load_tutorial"; plan: TutorialPlan; step?: number | null }
   | { type: "arm_takeover" }
   | { type: "disarm_takeover" };
 
@@ -121,12 +121,12 @@ export const isDemoEnvelope = (value: unknown): value is DemoEnvelope => {
       return true;
     case "move":
       return isNonNegativeNumber(command.x) && isNonNegativeNumber(command.y) &&
-        (command.duration_ms === undefined || isNonNegativeNumber(command.duration_ms));
+        (command.duration_ms == null || isNonNegativeNumber(command.duration_ms));
     case "navigate":
       return command.direction === "left" || command.direction === "right";
     case "load_tutorial":
       return isTutorialPlan(command.plan) &&
-        (command.step === undefined || isPositiveInteger(command.step));
+        (command.step == null || isPositiveInteger(command.step));
     default:
       return false;
   }

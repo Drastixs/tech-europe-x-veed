@@ -6,12 +6,18 @@ const envelope = (plan: unknown) => ({
   version: 1,
   sequence: 1,
   sent_at: "2026-08-22T12:00:00Z",
-  command: { type: "load_tutorial", plan, step: 1 }
+  command: { type: "load_tutorial", plan, step: 1 as number | null }
 });
 
 describe("tutorial plan protocol", () => {
   it("accepts a complete tutorial plan envelope", () => {
     expect(isDemoEnvelope(envelope(tutorialPlanFixture))).toBe(true);
+  });
+
+  it("accepts the backend's nullable optional step field", () => {
+    const value = envelope(tutorialPlanFixture);
+    value.command.step = null;
+    expect(isDemoEnvelope(value)).toBe(true);
   });
 
   it("rejects empty tutorial plans", () => {
