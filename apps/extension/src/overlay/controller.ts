@@ -1,6 +1,4 @@
-import type { DemoCommand, Direction } from "./protocol";
-
-export const TOTAL_STEPS = 6;
+import type { DemoCommand, Direction, TutorialStep } from "./protocol";
 
 export type OverlayState = {
   sessionVisible: boolean;
@@ -11,6 +9,8 @@ export type OverlayState = {
   step: number;
   clickRevision: number;
   activeDirection: Direction | null;
+  steps: TutorialStep[];
+  takeoverArmed: boolean;
   lastCommand: string;
 };
 
@@ -23,6 +23,8 @@ export const initialOverlayState: OverlayState = {
   step: 1,
   clickRevision: 0,
   activeDirection: null,
+  steps: [{ step_id: "waiting", text: "Waiting for a tutorial step…" }],
+  takeoverArmed: false,
   lastCommand: "ready"
 };
 
@@ -40,7 +42,13 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
         activeDirection: null
       };
     case "takeover":
-      return { ...state, guidanceVisible: false, activeDirection: null, lastCommand: "takeover" };
+      return {
+        ...state,
+        guidanceVisible: false,
+        activeDirection: null,
+        takeoverArmed: false,
+        lastCommand: "takeover"
+      };
     case "move":
       return {
         ...state,
@@ -65,11 +73,26 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
         ...state,
         sessionVisible: true,
         guidanceVisible: true,
-        step: Math.min(TOTAL_STEPS, Math.max(1, state.step + delta)),
+        step: Math.min(state.steps.length, Math.max(1, state.step + delta)),
         activeDirection: action.direction,
         lastCommand: `step ${action.direction}`
       };
     }
+    case "load_tutorial": {
+      if (action.steps.length === 0) return state;
+      return {
+        ...state,
+        steps: action.steps,
+        step: Math.min(action.steps.length, Math.max(1, action.step ?? 1)),
+        sessionVisible: true,
+        guidanceVisible: true,
+        lastCommand: "load tutorial"
+      };
+    }
+    case "arm_takeover":
+      return { ...state, takeoverArmed: true, lastCommand: "takeover armed" };
+    case "disarm_takeover":
+      return { ...state, takeoverArmed: false, lastCommand: "takeover disarmed" };
     case "clear_direction":
       return { ...state, activeDirection: null };
   }
@@ -87,12 +110,6 @@ export function hitTestNavigation(
     x >= rectangle.left && x <= rectangle.right && y >= rectangle.top && y <= rectangle.bottom;
   if (contains(left)) return "left";
   if (contains(right)) return "right";
-  return null;
-}
-
-export function directionForKey(key: string): Direction | null {
-  if (key === "ArrowLeft") return "left";
-  if (key === "ArrowRight") return "right";
   return null;
 }
 
