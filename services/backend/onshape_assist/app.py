@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from .planner import OpenAIPlanner, PlannerError
 
 Direction = Literal["left", "right"]
 CommandType = Literal[
@@ -20,17 +23,21 @@ CommandType = Literal[
 ]
 
 
-class RuntimePreferences(BaseModel):
+class TutorialContractModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RuntimePreferences(TutorialContractModel):
     detailed_narration: bool
 
 
-class Voice(BaseModel):
+class Voice(TutorialContractModel):
     provider: Literal["fal_elevenlabs"]
     voice_id: str = Field(min_length=1)
     speaking_rate: Annotated[float, Field(gt=0)]
 
 
-class TutorialAction(BaseModel):
+class TutorialAction(TutorialContractModel):
     sequence: Annotated[int, Field(ge=1)]
     action_type: Literal[
         "move",
@@ -52,18 +59,18 @@ class TutorialAction(BaseModel):
     fallback_activation: Literal["cdp"] | None
 
 
-class NarrationVariant(BaseModel):
+class NarrationVariant(TutorialContractModel):
     text: str = Field(min_length=1)
     fal_elevenlabs_audio_url: str = Field(min_length=1)
     duration_ms: Annotated[int, Field(ge=0)]
 
 
-class Narration(BaseModel):
+class Narration(TutorialContractModel):
     concise: NarrationVariant
     detailed: NarrationVariant
 
 
-class VoiceCue(BaseModel):
+class VoiceCue(TutorialContractModel):
     cue_id: str = Field(min_length=1)
     phase: Literal[
         "before_step",
@@ -86,13 +93,13 @@ class VoiceCue(BaseModel):
     blocking: bool
 
 
-class DynamicCorrections(BaseModel):
+class DynamicCorrections(TutorialContractModel):
     retry: str = Field(min_length=1)
     validation_failed: str = Field(min_length=1)
     user_interrupt: str = Field(min_length=1)
 
 
-class TutorialStep(BaseModel):
+class TutorialStep(TutorialContractModel):
     step_id: str = Field(min_length=1)
     goal: str = Field(min_length=1)
     preconditions: list[str]
@@ -104,13 +111,25 @@ class TutorialStep(BaseModel):
     uncertainties: list[str]
 
 
-class TutorialPlan(BaseModel):
+class TutorialPlan(TutorialContractModel):
     tutorial_id: str = Field(min_length=1)
     application: str = Field(min_length=1)
     output_language: str = Field(min_length=1)
     runtime_preferences: RuntimePreferences
     voice: Voice
     steps: Annotated[list[TutorialStep], Field(min_length=1)]
+
+
+class TutorialPlanningRequest(BaseModel):
+    video_analysis: dict[str, Any]
+    tutorial_id: str = Field(min_length=1)
+    application: str = Field(default="Onshape", min_length=1)
+    output_language: str = Field(default="en", min_length=1)
+    runtime_preferences: RuntimePreferences = Field(
+        default_factory=lambda: RuntimePreferences(detailed_narration=False)
+    )
+    voice: Voice
+    step: Annotated[int, Field(ge=1)] = 1
 
 
 class DemoCommand(BaseModel):
@@ -170,6 +189,17 @@ class Relay:
 
 relay = Relay()
 
+PlannerFactory = Callable[[], OpenAIPlanner]
+NarrationEnricher = Callable[[TutorialPlan], Awaitable[TutorialPlan]]
+
+
+async def _leave_narration_pending(plan: TutorialPlan) -> TutorialPlan:
+    return plan
+
+
+planner_factory: PlannerFactory = OpenAIPlanner
+narration_enricher: NarrationEnricher = _leave_narration_pending
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -187,6 +217,58 @@ async def health() -> dict[str, int | str]:
 
 @app.post("/commands", response_model=DemoEnvelope)
 async def command(command: DemoCommand) -> DemoEnvelope:
+    try:
+        normalized = normalize_command(command)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await relay.publish(normalized)
+
+
+@app.post("/tutorials/plan", response_model=DemoEnvelope)
+async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
+    planning_input = {
+        "video_analysis": request.video_analysis,
+        "tutorial_metadata": {
+            "tutorial_id": request.tutorial_id,
+            "application": request.application,
+            "output_language": request.output_language,
+            "runtime_preferences": request.runtime_preferences.model_dump(),
+            "voice": request.voice.model_dump(),
+        },
+    }
+    try:
+        generated = await planner_factory().generate(
+            input_payload=planning_input,
+            schema=TutorialPlan.model_json_schema(),
+        )
+        plan = TutorialPlan.model_validate(generated)
+    except PlannerError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenAI generated a tutorial plan that failed contract validation",
+        ) from exc
+
+    # Request metadata is authoritative even if the model tried to alter it.
+    plan = plan.model_copy(
+        update={
+            "tutorial_id": request.tutorial_id,
+            "application": request.application,
+            "output_language": request.output_language,
+            "runtime_preferences": request.runtime_preferences,
+            "voice": request.voice,
+        }
+    )
+    try:
+        enriched = TutorialPlan.model_validate(await narration_enricher(plan))
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Narration enrichment produced an invalid tutorial plan",
+        ) from exc
+
+    command = DemoCommand(type="load_tutorial", plan=enriched, step=request.step)
     try:
         normalized = normalize_command(command)
     except ValueError as exc:
