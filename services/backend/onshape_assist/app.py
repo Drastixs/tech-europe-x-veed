@@ -54,6 +54,7 @@ class TutorialActionBase(TutorialContractModel):
     ui_region: str = Field(min_length=1)
     target_label: str | None
     target_description: str = Field(min_length=1)
+    icon_description: str | None
     semantic_action: str = Field(min_length=1)
     expected_visible_result: str = Field(min_length=1)
     preferred_activation: Literal["dom_js", "cdp", "vision_only"]
@@ -352,6 +353,7 @@ class ComputerUseStepDemonstrationRequest(BaseModel):
 class HoloLocalizationRequest(BaseModel):
     screenshot_data_url: str = Field(min_length=1)
     target_description: str = Field(min_length=1)
+    icon_description: str | None = None
     target_label: str | None = None
     ui_region: str | None = None
     semantic_action: str | None = None
@@ -467,6 +469,7 @@ async def localize_computer_target(request: HoloLocalizationRequest) -> Localize
             request.screenshot_data_url,
             LocalizationContext(
                 target_description=request.target_description,
+                icon_description=request.icon_description,
                 target_label=request.target_label,
                 ui_region=request.ui_region,
                 semantic_action=request.semantic_action,

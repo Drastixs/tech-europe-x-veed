@@ -40,6 +40,7 @@ def tutorial_plan() -> dict:
                         "ui_region": "feature tree",
                         "target_label": "Sketch 1",
                         "target_description": "Sketch 1 in the feature tree.",
+                        "icon_description": "A blue sketch glyph beside the Sketch 1 label.",
                         "semantic_action": "Select Sketch 1.",
                         "expected_visible_result": "Sketch 1 is highlighted.",
                         "preferred_activation": "dom_js",
@@ -394,6 +395,7 @@ def test_computer_use_step_endpoint_captures_before_every_action(monkeypatch):
             "sequence": 2,
             "target_label": "Revolve",
             "target_description": "Revolve in the top toolbar.",
+            "icon_description": "A profile rotating around a vertical axis.",
             "semantic_action": "Open Revolve.",
             "expected_visible_result": "The Revolve dialog opens.",
         }

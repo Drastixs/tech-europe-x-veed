@@ -28,6 +28,7 @@ class LocalizedPoint(BaseModel):
 @dataclass(frozen=True, slots=True)
 class LocalizationContext:
     target_description: str
+    icon_description: str | None = None
     target_label: str | None = None
     ui_region: str | None = None
     semantic_action: str | None = None
@@ -35,6 +36,8 @@ class LocalizationContext:
 
     def prompt(self, schema: dict) -> str:
         details = [f"Target description: {self.target_description}"]
+        if self.icon_description:
+            details.append(f"Icon appearance: {self.icon_description}")
         if self.target_label:
             details.append(f"Visible label: {self.target_label}")
         if self.ui_region:

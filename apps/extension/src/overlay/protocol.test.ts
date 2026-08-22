@@ -82,6 +82,15 @@ describe("tutorial plan protocol", () => {
     expect(isDemoEnvelope(envelope(planWithAction(actionWith("click"))))).toBe(false);
   });
 
+  it("validates the per-action icon description", () => {
+    const withIcon = actionWith("click", { button: "primary" });
+    withIcon.icon_description = "A profile rotating around a vertical axis.";
+    expect(isDemoEnvelope(envelope(planWithAction(withIcon)))).toBe(true);
+
+    withIcon.icon_description = "";
+    expect(isDemoEnvelope(envelope(planWithAction(withIcon)))).toBe(false);
+  });
+
   it("accepts correlated screenshot capture commands", () => {
     expect(isDemoEnvelope({
       version: 1,

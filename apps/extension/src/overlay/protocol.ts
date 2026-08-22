@@ -15,6 +15,7 @@ type TutorialActionBase = {
   ui_region: string;
   target_label: string | null;
   target_description: string;
+  icon_description: string | null;
   semantic_action: string;
   expected_visible_result: string;
   preferred_activation: "dom_js" | "cdp" | "vision_only";
@@ -286,6 +287,7 @@ const isTutorialAction = (value: unknown): value is TutorialAction => {
     !isNonEmptyString(value.ui_region) ||
     (value.target_label !== null && !isNonEmptyString(value.target_label)) ||
     !isNonEmptyString(value.target_description) ||
+    (value.icon_description !== null && !isNonEmptyString(value.icon_description)) ||
     !isNonEmptyString(value.semantic_action) ||
     !isNonEmptyString(value.expected_visible_result) ||
     !activationTypes.has(String(value.preferred_activation)) ||

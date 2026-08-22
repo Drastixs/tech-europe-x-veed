@@ -44,6 +44,7 @@ def planned_tutorial() -> dict:
                         "ui_region": "toolbar",
                         "target_label": "Revolve",
                         "target_description": "Revolve in the top toolbar.",
+                        "icon_description": "A profile rotating around a vertical axis.",
                         "semantic_action": "Open Revolve.",
                         "expected_visible_result": "The Revolve dialog opens.",
                         "preferred_activation": "dom_js",
@@ -91,7 +92,14 @@ def planning_request() -> dict:
     return {
         "video_analysis": {
             "transcript": "Click Revolve.",
-            "actions": [{"timestamp_ms": 1200, "action": "click", "target": "Revolve"}],
+            "actions": [
+                {
+                    "timestamp_ms": 1200,
+                    "action": "click",
+                    "target": "Revolve",
+                    "icon_description": "A profile rotating around a vertical axis.",
+                }
+            ],
         },
         "tutorial_id": "requested-id",
         "output_language": "en-GB",
@@ -144,6 +152,9 @@ def test_openai_planner_uses_responses_strict_schema_and_server_key():
     assert "oneOf" not in action_schema
     assert "discriminator" not in action_schema
     assert "server-secret" not in captured["body"]["input"]
+    click_schema = output_format["schema"]["$defs"]["ClickAction"]
+    assert "icon_description" in click_schema["properties"]
+    assert "icon_description" in click_schema["required"]
 
 
 def test_openai_planner_accepts_nested_output_text():
@@ -232,6 +243,9 @@ def test_plan_endpoint_generates_enriches_and_relays(monkeypatch):
 
     assert response.status_code == 200
     assert relayed == response.json()
+    assert response.json()["command"]["plan"]["steps"][0]["actions"][0][
+        "icon_description"
+    ] == "A profile rotating around a vertical axis."
     plan = response.json()["command"]["plan"]
     assert plan["tutorial_id"] == "requested-id"
     assert plan["output_language"] == "en-GB"

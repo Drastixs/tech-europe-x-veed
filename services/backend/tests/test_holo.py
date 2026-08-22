@@ -36,6 +36,7 @@ def test_holo_localizer_sends_structured_screenshot_request():
                 "data:image/png;base64,c2NyZWVu",
                 LocalizationContext(
                     target_description="Sketch 1 in the feature tree",
+                    icon_description="A blue sketch glyph beside the Sketch 1 label",
                     target_label="Sketch 1",
                     ui_region="left feature tree",
                     semantic_action="Select Sketch 1",
@@ -54,6 +55,7 @@ def test_holo_localizer_sends_structured_screenshot_request():
     content = captured["body"]["messages"][0]["content"]
     assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
     assert "Sketch 1" in content[1]["text"]
+    assert "Icon appearance: A blue sketch glyph" in content[1]["text"]
 
 
 def test_holo_localizer_requires_configuration_and_image_data():

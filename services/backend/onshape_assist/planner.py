@@ -15,7 +15,9 @@ in-browser teaching assistant. Convert timestamped video-analysis JSON into an e
 PLANNING
 - Group atomic actions into user-meaningful steps with one semantic goal each.
 - Preserve every source action exactly once and in chronological order; never invent an action.
-- Preserve UI regions, target labels, visible results, warnings, and uncertainty notes.
+- Preserve UI regions, target labels, target descriptions, icon descriptions, visible results,
+  warnings, and uncertainty notes. Copy each source action's icon_description to its planned action;
+  use null only when the source action has no icon description.
 - Define the visible preconditions and expected end state for every step.
 - Number each step's actions contiguously from one.
 

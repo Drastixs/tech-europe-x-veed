@@ -57,6 +57,7 @@ class ActionContext(Protocol):
     action_type: str
     target_label: str | None
     target_description: str
+    icon_description: str | None
     ui_region: str
     semantic_action: str
     parameters: Any
@@ -183,6 +184,7 @@ class DemoRunner:
             screenshot,
             LocalizationContext(
                 target_description=action.target_description,
+                icon_description=action.icon_description,
                 target_label=action.target_label,
                 ui_region=action.ui_region,
                 semantic_action=action.semantic_action,
