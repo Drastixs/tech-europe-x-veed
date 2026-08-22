@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -378,6 +379,15 @@ class ExecuteActionCommand(CommandBase):
     end_target: PixelPoint | None
 
 
+class TutorialStepStatusCommand(CommandBase):
+    type: Literal["tutorial_step_status"]
+    session_id: str = Field(min_length=1)
+    tutorial_id: str = Field(min_length=1)
+    step_id: str = Field(min_length=1)
+    status: Literal["demonstrating", "demo_visible", "restoring", "learner_attempt", "failed"]
+    message: str | None = None
+
+
 DemoCommand = Annotated[
     ShowCommand
     | HideCommand
@@ -388,7 +398,8 @@ DemoCommand = Annotated[
     | ArmTakeoverCommand
     | DisarmTakeoverCommand
     | CaptureObservationCommand
-    | ExecuteActionCommand,
+    | ExecuteActionCommand
+    | TutorialStepStatusCommand,
     Field(discriminator="type"),
 ]
 demo_command_adapter = TypeAdapter(DemoCommand)
@@ -403,6 +414,37 @@ class ComputerUseDemonstrationRequest(BaseModel):
 class ComputerUseStepDemonstrationRequest(BaseModel):
     step: TutorialStep
     execute: bool = True
+
+
+class TutorialStepExecutionRequest(BaseModel):
+    """Execute one already-planned, narrated step in a live Onshape workspace."""
+
+    plan: TutorialPlan
+    step: Annotated[int, Field(ge=1)]
+    document_url: str = Field(min_length=1)
+    execute: bool = True
+
+
+class TutorialStepExecutionSession(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=1)
+    tutorial_id: str = Field(min_length=1)
+    step_id: str = Field(min_length=1)
+    state: Literal[
+        "demonstrating",
+        "demo_visible",
+        "restoring",
+        "learner_attempt",
+        "restore_failed",
+        "demonstration_failed",
+    ]
+    baseline: OnshapeSnapshot
+    demo_snapshot: OnshapeSnapshot | None = None
+    demonstration: StepDemonstrationResult | None = None
+    restore: RestoreResult | None = None
+    learner_observation_count: Annotated[int, Field(ge=0)] = 0
+    latest_learner_observation_at_ms: Annotated[int | None, Field(ge=0)] = None
 
 
 class HoloLocalizationRequest(BaseModel):
@@ -470,11 +512,15 @@ computer_use_lock = asyncio.Lock()
 PlannerFactory = Callable[[], OpenAIPlanner]
 NarrationEnricher = Callable[[TutorialPlan], Awaitable[TutorialPlan]]
 HoloFactory = Callable[[], HoloClient]
+OnshapeFactory = Callable[[], OnshapeClient]
 
 
 planner_factory: PlannerFactory = OpenAIPlanner
 narration_enricher: NarrationEnricher = enrich_plan_narration
 holo_factory: HoloFactory = HoloClient
+onshape_factory: OnshapeFactory = OnshapeClient.from_env
+tutorial_step_sessions: dict[str, TutorialStepExecutionSession] = {}
+active_tutorial_step_session_id: str | None = None
 
 
 @asynccontextmanager
@@ -598,6 +644,8 @@ async def _analyze_video(
         )
     except AnalysisError as exc:
         raise HTTPException(status_code=422, detail=exc.detail or str(exc)) from exc
+
+
 async def publish_computer_use_command(command_data: dict[str, Any]) -> None:
     command = demo_command_adapter.validate_python(command_data)
     await relay.publish(command)
@@ -675,6 +723,75 @@ async def demonstrate_computer_step(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except (ComputerUseError, ValidationError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/tutorials/demonstrate-step", response_model=TutorialStepExecutionSession)
+async def demonstrate_tutorial_step(
+    request: TutorialStepExecutionRequest,
+) -> TutorialStepExecutionSession:
+    """Capture a rollback point, demonstrate a narrated plan step, and arm takeover."""
+    global active_tutorial_step_session_id
+
+    if request.step > len(request.plan.steps):
+        raise HTTPException(status_code=422, detail="step exceeds the number of plan steps")
+    try:
+        target = OnshapeTarget.from_document_url(request.document_url)
+    except OnshapeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    async with computer_use_lock:
+        await _restore_visible_demo_before_redo(target)
+        baseline = _run_onshape_operation(lambda client: client.snapshot(target))
+        tutorial_step = request.plan.steps[request.step - 1]
+        session = TutorialStepExecutionSession(
+            session_id=f"tutorial_step_{uuid4().hex}",
+            tutorial_id=request.plan.tutorial_id,
+            step_id=tutorial_step.step_id,
+            state="demonstrating",
+            baseline=baseline,
+        )
+        tutorial_step_sessions[session.session_id] = session
+        active_tutorial_step_session_id = session.session_id
+        await _publish_tutorial_step_status(session)
+
+        runner = DemoRunner(
+            holo=holo_factory(),
+            publish_command=publish_computer_use_command,
+            request_extension=request_extension_event,
+        )
+        try:
+            demonstration = await runner.demonstrate_step(tutorial_step, execute=request.execute)
+        except HoloConfigurationError as exc:
+            await _fail_tutorial_step_session(session, str(exc))
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except (HoloError, ComputerUseError, ValidationError) as exc:
+            await _fail_tutorial_step_session(session, str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        session.demonstration = demonstration
+        if not demonstration.success:
+            session.state = "demonstration_failed"
+            await _publish_tutorial_step_status(
+                session, status="failed", message=demonstration.reason
+            )
+            return session
+
+        session.demo_snapshot = _run_onshape_operation(lambda client: client.snapshot(target))
+        session.state = "demo_visible"
+        await _publish_tutorial_step_status(session)
+        await relay.publish(ArmTakeoverCommand(type="arm_takeover"))
+        return session
+
+
+@app.get(
+    "/tutorials/demonstration-sessions/{session_id}",
+    response_model=TutorialStepExecutionSession,
+)
+async def get_tutorial_step_session(session_id: str) -> TutorialStepExecutionSession:
+    session = tutorial_step_sessions.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="tutorial step session not found")
+    return session
 
 
 @app.post("/tutorials/plan", response_model=DemoEnvelope)
@@ -771,7 +888,16 @@ async def extension_socket(websocket: WebSocket) -> None:
                 and message.get("type") == "extension.event"
                 and isinstance(message.get("event"), dict)
             ):
-                extension_events.resolve(message["event"])
+                event = message["event"]
+                extension_events.resolve(event)
+                if event.get("type") in {
+                    "observation.captured",
+                    "learner.observation.captured",
+                }:
+                    _record_learner_observation(event)
+                if event.get("type") == "user.takeover":
+                    async with computer_use_lock:
+                        await _restore_active_tutorial_step(event.get("session_id"))
     except WebSocketDisconnect:
         relay.disconnect(websocket)
 
@@ -787,8 +913,12 @@ def normalize_command(command: DemoCommand) -> DemoCommand:
 
 
 def _with_onshape_client(operation: Callable[[OnshapeClient], Any]) -> Any:
+    return _run_onshape_operation(operation)
+
+
+def _run_onshape_operation(operation: Callable[[OnshapeClient], Any]) -> Any:
     try:
-        client = OnshapeClient.from_env()
+        client = onshape_factory()
     except OnshapeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
@@ -797,3 +927,116 @@ def _with_onshape_client(operation: Callable[[OnshapeClient], Any]) -> Any:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     finally:
         client.close()
+
+
+async def _publish_tutorial_step_status(
+    session: TutorialStepExecutionSession,
+    *,
+    status: Literal["demonstrating", "demo_visible", "restoring", "learner_attempt", "failed"]
+    | None = None,
+    message: str | None = None,
+) -> None:
+    published_status = status or (
+        session.state
+        if session.state in {"demonstrating", "demo_visible", "restoring", "learner_attempt"}
+        else "failed"
+    )
+    await relay.publish(
+        TutorialStepStatusCommand(
+            type="tutorial_step_status",
+            session_id=session.session_id,
+            tutorial_id=session.tutorial_id,
+            step_id=session.step_id,
+            status=published_status,
+            message=message,
+        )
+    )
+
+
+async def _fail_tutorial_step_session(session: TutorialStepExecutionSession, message: str) -> None:
+    session.state = "demonstration_failed"
+    await _publish_tutorial_step_status(session, status="failed", message=message)
+
+
+async def _restore_active_tutorial_step(requested_session_id: Any = None) -> None:
+    session_id = active_tutorial_step_session_id
+    if session_id is None:
+        return
+    if isinstance(requested_session_id, str) and requested_session_id != session_id:
+        return
+    session = tutorial_step_sessions.get(session_id)
+    if session is None or session.state != "demo_visible" or session.demo_snapshot is None:
+        return
+
+    session.state = "restoring"
+    await _publish_tutorial_step_status(session)
+    try:
+        restore = _run_onshape_operation(
+            lambda client: client.restore_baseline(
+                session.baseline,
+                expected_microversion_id=session.demo_snapshot.microversion_id,
+            )
+        )
+    except HTTPException as exc:
+        session.state = "restore_failed"
+        await _publish_tutorial_step_status(session, status="failed", message=str(exc.detail))
+        return
+
+    session.restore = restore
+    if restore.outcome != "restored":
+        session.state = "restore_failed"
+        await _publish_tutorial_step_status(
+            session,
+            status="failed",
+            message=f"baseline restore failed: {restore.outcome}",
+        )
+        return
+
+    session.state = "learner_attempt"
+    await relay.publish(DisarmTakeoverCommand(type="disarm_takeover"))
+    await _publish_tutorial_step_status(session)
+
+
+async def _restore_visible_demo_before_redo(target: OnshapeTarget) -> None:
+    """Reset our own still-visible demo before a replay captures a fresh baseline."""
+    session_id = active_tutorial_step_session_id
+    session = tutorial_step_sessions.get(session_id) if session_id else None
+    if (
+        session is None
+        or session.state != "demo_visible"
+        or session.demo_snapshot is None
+        or session.baseline.target != target
+    ):
+        return
+    session.state = "restoring"
+    await _publish_tutorial_step_status(session)
+    await relay.publish(DisarmTakeoverCommand(type="disarm_takeover"))
+    restore = _run_onshape_operation(
+        lambda client: client.restore_baseline(
+            session.baseline,
+            expected_microversion_id=session.demo_snapshot.microversion_id,
+        )
+    )
+    session.restore = restore
+    if restore.outcome != "restored":
+        session.state = "restore_failed"
+        await _publish_tutorial_step_status(
+            session, status="failed", message=f"cannot replay: {restore.outcome}"
+        )
+        raise HTTPException(status_code=409, detail=f"cannot replay step: {restore.outcome}")
+    session.state = "learner_attempt"
+
+
+def _record_learner_observation(event: dict[str, Any]) -> None:
+    session_id = active_tutorial_step_session_id
+    session = tutorial_step_sessions.get(session_id) if session_id else None
+    if session is None or session.state != "learner_attempt":
+        return
+    event_session_id = event.get("session_id")
+    if isinstance(event_session_id, str) and event_session_id != session.session_id:
+        return
+    timestamp_ms = event.get("timestamp_ms")
+    if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
+        timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
+    session.learner_observation_count += 1
+    session.latest_learner_observation_at_ms = timestamp_ms
