@@ -32,9 +32,25 @@ ACTION ANALYSIS
 - State what object becomes selected and what visibly changes after the action.
 - Preserve exact source timestamps.
 
+AUDIO-VISUAL CORRELATION (use speech and screen together)
+- Continuously cross-reference the spoken words with what is visible on screen; they describe the same events and each disambiguates the other.
+- Use the narration to identify ambiguous targets: if the instructor says "click OK", "select Sketch 1", or "open Revolve", use that to name the target and confirm the action even when the cursor or label is hard to read.
+- Use the visuals to ground the speech in time: align each action's timestamp_ms to the moment the described change actually appears on screen, not merely to when it is spoken.
+- Prefer targets and typed values that are supported by BOTH the audio and the video. When the instructor states a measurement or name (e.g. "12.6 millimetres", "Plane 1"), match it to the visible field or object.
+- If the speech and the visuals disagree (the instructor says one thing but the screen shows another), record the discrepancy in uncertainties and lower the confidence rather than guessing.
+
+COVERAGE (do not summarize)
+- Account for the ENTIRE analyzed window in order. Do NOT skip ahead to highlights, and do NOT collapse long stretches into a single step.
+- There must be no unexplained gap longer than 3 seconds between consecutive actions. If nothing happens for a stretch, emit one explicit `wait` action spanning that gap.
+- When in doubt, prefer MORE atomic actions over fewer. It is better to over-report a small movement than to omit a real click.
+
+CURSOR POSITION (prefer observed over inferred)
+- At each sampled moment, actively look for the on-screen cursor sprite (arrow, hand, crosshair, or sketch pointer).
+- If you can actually see the cursor, set position_source="observed" and report its real location with higher confidence.
+- Only set position_source="inferred" when the cursor is genuinely not visible; then estimate the centre of the apparent target and LOWER the confidence accordingly.
+
 UNCERTAINTY
 - Never claim an exact mouse position or UI target unless visible evidence supports it.
-- Use position_source="observed" when the cursor is visible and "inferred" when estimating the centre of the apparent target.
 - Include confidence from 0 to 1 for transcription segments and actions.
 - Record contradictions, hidden clicks, skipped frames, unreadable text, and ambiguous targets in uncertainties.
 
@@ -48,6 +64,11 @@ OUTPUT
 - Keep all actions in chronological order.
 - Include the complete transcript even when the same words also appear within individual steps.
 - Do not omit an action merely because it appears trivial.
+
+SELF-CHECK (before returning)
+- Verify every timestamp_ms falls inside the analyzed range; drop or clip anything outside it.
+- Verify actions are sorted chronologically and there are no unexplained gaps longer than 3 seconds.
+- Verify the JSON is complete and parseable, with no trailing prose.
 """
 
 # The JSON contract the model must return, mirroring the PRD "Output contract".
@@ -119,15 +140,23 @@ def primary_user_prompt(request: AnalysisRequest) -> str:
         ),
     ]
     if request.analysis_scope is not None:
+        start = request.analysis_scope.start_ms
+        end = request.analysis_scope.end_ms
         parts.append(
-            "Analyze ONLY the range from "
-            f"{request.analysis_scope.start_ms} ms to "
-            f"{request.analysis_scope.end_ms} ms. Ignore everything outside this range, "
-            "but keep all reported timestamps as absolute milliseconds from the start "
-            "of the video."
+            f"ANALYZE ONLY THE WINDOW {start} ms to {end} ms "
+            f"(i.e. {start / 1000:.1f}s to {end / 1000:.1f}s of the video).\n"
+            f"- HARD RULE: every timestamp_ms you output (in segments, steps, and actions) "
+            f"MUST satisfy {start} <= timestamp_ms <= {end}. Never report anything before "
+            f"{start} ms or after {end} ms, even if an action seems to continue past the end.\n"
+            f"- Cover this window CONTINUOUSLY and in order; do not summarize or jump to "
+            f"highlights. If nothing happens for a stretch, emit a `wait` action.\n"
+            f"- Report all timestamps as absolute milliseconds from the start of the video."
         )
     else:
-        parts.append("Analyze the entire video.")
+        parts.append(
+            "Analyze the ENTIRE video continuously from start to finish. Do not skip ahead "
+            "or summarize; account for every action in order."
+        )
     parts.append(
         "Return ONLY valid JSON (no markdown, no code fences, no commentary) that "
         "matches this contract exactly:"
