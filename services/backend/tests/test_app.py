@@ -61,6 +61,7 @@ def tutorial_plan() -> dict:
                 ],
                 "dynamic_corrections": {
                     "retry": "I'll check the screen again.",
+                    "target_relocated": "The target moved, so I'll locate it again.",
                     "validation_failed": "That did not open, so I'll pause.",
                     "user_interrupt": "You moved the mouse, so I'll stop.",
                 },
