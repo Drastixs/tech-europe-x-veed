@@ -27,6 +27,7 @@ packages = ["onshape_assist"]
 [project.scripts]
 overlayctl = "onshape_assist.cli:main"
 analyzectl = "onshape_assist.analysis.cli:main"
+plannerctl = "onshape_assist.planner_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

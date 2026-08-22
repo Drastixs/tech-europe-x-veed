@@ -66,6 +66,7 @@ export type VoiceCue = {
 export type DynamicCorrections = {
   retry: string;
   validation_failed: string;
+  target_relocated: string;
   user_interrupt: string;
 };
 
@@ -217,6 +218,7 @@ const isDynamicCorrections = (value: unknown): value is DynamicCorrections =>
   isRecord(value) &&
   isNonEmptyString(value.retry) &&
   isNonEmptyString(value.validation_failed) &&
+  isNonEmptyString(value.target_relocated) &&
   isNonEmptyString(value.user_interrupt);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -101,6 +101,21 @@ curl -X POST http://127.0.0.1:8000/analyze \
 The output validates against the PRD JSON contract and becomes the input to the
 computer-use and browser-state systems.
 
+## Tutorial planning
+
+`plannerctl` converts a planning request containing video analysis and tutorial metadata
+into the live tutorial-plan protocol consumed by the extension. It uses the backend-only
+OpenAI and fal credentials, and returns `tutorial-planner-error/v1` envelopes on failure.
+
+```bash
+uv run --project services/backend plannerctl \
+  --input services/backend/fixtures/revolve-from-sketch-1.analysis-to-plan-v1.json \
+  --output tutorial-plan.json
+```
+
+The committed fixture includes both the request and its canonical expected plan; `plannerctl`
+automatically reads the fixture's `request` object.
+
 ## Checks
 
 ```bash

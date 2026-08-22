@@ -29,7 +29,7 @@ from .onshape import (
     RestoreResult,
     ValidationResult,
 )
-from .planner import OpenAIPlanner, PlannerError
+from .planner import OpenAIPlanner, PlannerError, error_envelope
 
 Direction = Literal["left", "right"]
 CommandType = Literal[
@@ -116,6 +116,7 @@ class VoiceCue(TutorialContractModel):
 
 class DynamicCorrections(TutorialContractModel):
     retry: str = Field(min_length=1)
+    target_relocated: str = Field(min_length=1)
     validation_failed: str = Field(min_length=1)
     user_interrupt: str = Field(min_length=1)
 
@@ -139,6 +140,11 @@ class TutorialStep(TutorialContractModel):
             raise ValueError("tutorial action sequences must be contiguous and ordered from 1")
         if any(cue.action_sequence not in sequences for cue in self.voice_cues):
             raise ValueError("voice cue action_sequence must reference an action in its step")
+        if any(
+            action.preferred_activation == "dom_js" and action.fallback_activation != "cdp"
+            for action in self.actions
+        ):
+            raise ValueError("dom_js actions must use cdp as their fallback activation")
         return self
 
 
@@ -352,11 +358,14 @@ async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
         )
         plan = TutorialPlan.model_validate(generated)
     except PlannerError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        raise HTTPException(status_code=exc.status_code, detail=exc.envelope()) from exc
     except ValidationError as exc:
         raise HTTPException(
             status_code=502,
-            detail="OpenAI generated a tutorial plan that failed contract validation",
+            detail=error_envelope(
+                "contract_validation_failed",
+                "OpenAI generated a tutorial plan that failed contract validation",
+            ),
         ) from exc
 
     # Request metadata is authoritative even if the model tried to alter it.
@@ -381,13 +390,20 @@ async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
     try:
         enriched = TutorialPlan.model_validate(await narration_enricher(plan))
     except NarrationConfigurationError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=503, detail=error_envelope("narration_configuration_error", str(exc))
+        ) from exc
     except NarrationError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=502, detail=error_envelope("narration_error", str(exc))
+        ) from exc
     except ValidationError as exc:
         raise HTTPException(
             status_code=502,
-            detail="Narration enrichment produced an invalid tutorial plan",
+            detail=error_envelope(
+                "narration_contract_validation_failed",
+                "Narration enrichment produced an invalid tutorial plan",
+            ),
         ) from exc
 
     command = DemoCommand(type="load_tutorial", plan=enriched, step=request.step)

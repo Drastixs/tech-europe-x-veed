@@ -30,7 +30,7 @@ VOICE
   previews every visible action in its exact order before the demonstration.
 - Narrate only user-visible actions, intent, warnings, and results. Never mention coordinates,
   DOM, CDP, JavaScript, APIs, model confidence, hidden reasoning, or implementation mechanisms.
-- Provide short retry, validation-failure, and user-interruption correction lines.
+- Provide short retry, target-relocation, validation-failure, and user-interruption correction lines.
 
 TIMING
 - Provide cues for entry narration and relevant correction events. Each cue must reference an
@@ -48,9 +48,21 @@ OUTPUT
 class PlannerError(Exception):
     message: str
     status_code: int = 502
+    code: str = "provider_error"
 
     def __str__(self) -> str:
         return self.message
+
+    def envelope(self) -> dict[str, str]:
+        return error_envelope(self.code, self.message)
+
+
+def error_envelope(code: str, message: str) -> dict[str, str]:
+    return {
+        "version": "tutorial-planner-error/v1",
+        "code": code,
+        "message": message,
+    }
 
 
 class OpenAIPlanner:
@@ -79,7 +91,11 @@ class OpenAIPlanner:
         self, *, input_payload: dict[str, Any], schema: dict[str, Any]
     ) -> dict[str, Any]:
         if not self.api_key:
-            raise PlannerError("OPENAI_API_KEY is not configured", status_code=503)
+            raise PlannerError(
+                "OPENAI_API_KEY is not configured",
+                status_code=503,
+                code="configuration_error",
+            )
 
         request = {
             "model": self.model,
@@ -110,40 +126,56 @@ class OpenAIPlanner:
                         f"{self.base_url}/responses", json=request, headers=headers
                     )
         except httpx.TimeoutException as exc:
-            raise PlannerError("OpenAI planning request timed out", status_code=504) from exc
+            raise PlannerError(
+                "OpenAI planning request timed out", status_code=504, code="provider_timeout"
+            ) from exc
         except httpx.HTTPError as exc:
-            raise PlannerError("OpenAI planning request failed") from exc
+            raise PlannerError("OpenAI planning request failed", code="provider_request_failed") from exc
 
         if response.is_error:
             request_id = response.headers.get("x-request-id")
             suffix = f" (request {request_id})" if request_id else ""
-            raise PlannerError(f"OpenAI planning request returned {response.status_code}{suffix}")
+            raise PlannerError(
+                f"OpenAI planning request returned {response.status_code}{suffix}",
+                code="provider_response_error",
+            )
 
         try:
             body = response.json()
         except ValueError as exc:
-            raise PlannerError("OpenAI planning response was not JSON") from exc
+            raise PlannerError("OpenAI planning response was not JSON", code="invalid_response") from exc
 
         status = body.get("status")
         if status not in (None, "completed"):
             detail = body.get("incomplete_details", {}).get("reason", status)
-            raise PlannerError(f"OpenAI planning response did not complete: {detail}")
+            raise PlannerError(
+                f"OpenAI planning response did not complete: {detail}", code="incomplete_response"
+            )
 
         refusal = _find_refusal(body)
         if refusal:
-            raise PlannerError(f"OpenAI refused to generate the tutorial plan: {refusal}", 422)
+            raise PlannerError(
+                f"OpenAI refused to generate the tutorial plan: {refusal}",
+                422,
+                "model_refusal",
+            )
 
         output_text = _find_output_text(body)
         if output_text is None:
-            raise PlannerError("OpenAI planning response contained no structured output")
+            raise PlannerError(
+                "OpenAI planning response contained no structured output", code="missing_structured_output"
+            )
         try:
             parsed = json.loads(output_text)
         except (TypeError, json.JSONDecodeError) as exc:
             raise PlannerError(
-                "OpenAI planning response contained invalid structured JSON"
+                "OpenAI planning response contained invalid structured JSON",
+                code="invalid_structured_output",
             ) from exc
         if not isinstance(parsed, dict):
-            raise PlannerError("OpenAI planning response must be a JSON object")
+            raise PlannerError(
+                "OpenAI planning response must be a JSON object", code="invalid_structured_output"
+            )
         return parsed
 
 

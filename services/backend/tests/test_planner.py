@@ -76,6 +76,7 @@ def planned_tutorial() -> dict:
                 ],
                 "dynamic_corrections": {
                     "retry": "I'll try that again.",
+                    "target_relocated": "The target moved, so I'll find it again.",
                     "validation_failed": "That did not open, so I'll pause.",
                     "user_interrupt": "You've taken control, so I'll stop.",
                 },
@@ -327,7 +328,15 @@ def test_plan_endpoint_maps_narration_failures(monkeypatch, error, expected_stat
         response = client.post("/tutorials/plan", json=planning_request())
 
     assert response.status_code == expected_status
-    assert response.json()["detail"] == str(error)
+    assert response.json()["detail"] == {
+        "version": "tutorial-planner-error/v1",
+        "code": (
+            "narration_configuration_error"
+            if expected_status == 503
+            else "narration_error"
+        ),
+        "message": str(error),
+    }
 
 
 def test_plan_endpoint_maps_missing_api_key_to_service_unavailable(monkeypatch):
@@ -341,7 +350,11 @@ def test_plan_endpoint_maps_missing_api_key_to_service_unavailable(monkeypatch):
         response = client.post("/tutorials/plan", json=planning_request())
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "OPENAI_API_KEY is not configured"
+    assert response.json()["detail"] == {
+        "version": "tutorial-planner-error/v1",
+        "code": "configuration_error",
+        "message": "OPENAI_API_KEY is not configured",
+    }
 
 
 def test_generated_plan_with_extra_nested_fields_fails_contract(monkeypatch):
@@ -358,7 +371,11 @@ def test_generated_plan_with_extra_nested_fields_fails_contract(monkeypatch):
         response = client.post("/tutorials/plan", json=planning_request())
 
     assert response.status_code == 502
-    assert "failed contract validation" in response.json()["detail"]
+    assert response.json()["detail"] == {
+        "version": "tutorial-planner-error/v1",
+        "code": "contract_validation_failed",
+        "message": "OpenAI generated a tutorial plan that failed contract validation",
+    }
 
 
 @pytest.mark.parametrize(
@@ -367,6 +384,7 @@ def test_generated_plan_with_extra_nested_fields_fails_contract(monkeypatch):
         lambda plan: plan["steps"][0]["actions"][0].update(sequence=2),
         lambda plan: plan["steps"][0]["voice_cues"][0].update(action_sequence=2),
         lambda plan: plan["steps"][0].update(voice_cues=[]),
+        lambda plan: plan["steps"][0]["actions"][0].update(fallback_activation=None),
     ],
 )
 def test_plan_contract_rejects_invalid_action_and_cue_invariants(mutate):

@@ -1,0 +1,120 @@
+{
+  "version": "tutorial-planning-fixture/v1",
+  "request": {
+    "video_analysis": {
+      "video": {
+        "url": "https://video.example/revolve-from-sketch-1.mp4",
+        "application": "Onshape",
+        "analyzed_start_ms": 0,
+        "analyzed_end_ms": 12000
+      },
+      "full_transcript": {
+        "verbatim_text": "Select Sketch 1, open Revolve, choose the axis, then confirm.",
+        "segments": [
+          {
+            "start_ms": 0,
+            "end_ms": 12000,
+            "speaker": "instructor",
+            "text": "Select Sketch 1, open Revolve, choose the axis, then confirm."
+          }
+        ]
+      },
+      "steps": [
+        {
+          "step_id": "revolve-sketch-1",
+          "start_ms": 0,
+          "end_ms": 12000,
+          "goal": "Create a revolve from Sketch 1.",
+          "actions": [
+            {"sequence": 1, "timestamp_ms": 1000, "action_type": "click", "target_label": "Sketch 1"},
+            {"sequence": 2, "timestamp_ms": 3500, "action_type": "click", "target_label": "Revolve"},
+            {"sequence": 3, "timestamp_ms": 7000, "action_type": "click", "target_label": "Revolve axis"},
+            {"sequence": 4, "timestamp_ms": 10500, "action_type": "click", "target_label": "Confirm"}
+          ],
+          "expected_end_state": "Revolve 1 appears in the feature tree."
+        }
+      ]
+    },
+    "tutorial_id": "revolve-from-sketch-1",
+    "application": "Onshape",
+    "output_language": "en-GB",
+    "runtime_preferences": {"detailed_narration": true},
+    "voice": {"provider": "fal_elevenlabs", "voice_id": "Rachel", "speaking_rate": 1.0},
+    "step": 1
+  },
+  "plan": {
+    "tutorial_id": "revolve-from-sketch-1",
+    "application": "Onshape",
+    "output_language": "en-GB",
+    "runtime_preferences": {"detailed_narration": true},
+    "voice": {"provider": "fal_elevenlabs", "voice_id": "Rachel", "speaking_rate": 1.0},
+    "steps": [
+      {
+        "step_id": "revolve-sketch-1",
+        "goal": "Create a revolve from Sketch 1.",
+        "preconditions": ["Sketch 1 is visible in the feature tree."],
+        "actions": [
+          {
+            "sequence": 1,
+            "action_type": "click",
+            "ui_region": "feature tree",
+            "target_label": "Sketch 1",
+            "target_description": "The Sketch 1 entry in the feature tree.",
+            "semantic_action": "Select Sketch 1.",
+            "expected_visible_result": "Sketch 1 is highlighted.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 2,
+            "action_type": "click",
+            "ui_region": "feature toolbar",
+            "target_label": "Revolve",
+            "target_description": "The Revolve feature button in the top toolbar.",
+            "semantic_action": "Open Revolve.",
+            "expected_visible_result": "The Revolve dialog opens.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          },
+          {
+            "sequence": 3,
+            "action_type": "click",
+            "ui_region": "Revolve dialog",
+            "target_label": "Revolve axis",
+            "target_description": "The axis selector in the Revolve dialog.",
+            "semantic_action": "Choose the construction line as the revolve axis.",
+            "expected_visible_result": "The revolve preview updates around the selected axis.",
+            "preferred_activation": "cdp",
+            "fallback_activation": null
+          },
+          {
+            "sequence": 4,
+            "action_type": "click",
+            "ui_region": "Revolve dialog",
+            "target_label": "Confirm",
+            "target_description": "The confirmation button in the Revolve dialog.",
+            "semantic_action": "Confirm the Revolve feature.",
+            "expected_visible_result": "Revolve 1 appears in the feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp"
+          }
+        ],
+        "narration": {
+          "concise": {"text": "Let's turn Sketch 1 into a revolve.", "fal_elevenlabs_audio_url": "pending://tts/revolve-sketch-1/concise", "duration_ms": 0},
+          "detailed": {"text": "I'll select Sketch 1, open Revolve, choose the construction line for the axis, then confirm the feature.", "fal_elevenlabs_audio_url": "pending://tts/revolve-sketch-1/detailed", "duration_ms": 0}
+        },
+        "voice_cues": [
+          {"cue_id": "revolve-intro", "phase": "before_step", "action_sequence": 1, "variant": "both", "text_ref": "runtime_select:narration.concise.text|narration.detailed.text", "start_policy": "play_before_motion", "blocking": true}
+        ],
+        "dynamic_corrections": {
+          "retry": "I didn't find that where expected, so I'll check the screen again.",
+          "target_relocated": "That control moved, so I'll locate it again before continuing.",
+          "validation_failed": "The Revolve feature did not appear as expected, so I'll pause here.",
+          "user_interrupt": "You've taken control, so I'll stop the demonstration."
+        },
+        "expected_end_state": "Revolve 1 appears in the feature tree.",
+        "uncertainties": []
+      }
+    ]
+  }
+}
