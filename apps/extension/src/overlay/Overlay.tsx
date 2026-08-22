@@ -22,6 +22,7 @@ import "./overlay.css";
 export function Overlay() {
   const [state, dispatch] = useReducer(reduceOverlayState, initialOverlayState);
   const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>("idle");
+  const [redoStatus, setRedoStatus] = useState<"idle" | "requesting" | "failed">("idle");
   const playerRef = useRef<NarrationPlayer | null>(null);
   if (!playerRef.current) {
     playerRef.current = new NarrationPlayer(browserAudioFactory, setPlaybackStatus);
@@ -134,6 +135,26 @@ export function Overlay() {
   const playNarration = () => {
     if (narration) void playerRef.current?.play(narration.fal_elevenlabs_audio_url);
   };
+
+  const requestStepRedo = async () => {
+    if (!currentStep || !state.plan || redoStatus === "requesting") return;
+
+    setRedoStatus("requesting");
+    try {
+      await browser.runtime.sendMessage({
+        channel: "onshape-assist",
+        event: createStepRedoRequestedEvent(
+          state.plan.tutorial_id,
+          currentStep.step_id,
+          state.step
+        )
+      });
+      setRedoStatus("idle");
+    } catch {
+      setRedoStatus("failed");
+    }
+  };
+
   if (!state.sessionVisible) return null;
 
   return (
@@ -186,6 +207,19 @@ export function Overlay() {
           </button>
         </div>
         <button
+          className="oa-redo"
+          type="button"
+          onClick={() => void requestStepRedo()}
+          disabled={!currentStep || navigationBlocked || redoStatus === "requesting"}
+          aria-label={currentStep ? `Redo step ${state.step}: ${currentStep.goal}` : "Redo current step"}
+          title={redoStatus === "failed" ? "Could not request the redo. Try again." : "Redo current step with the agent"}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M13.25 5.25V2.5m0 2.75H10.5M13 5a5.5 5.5 0 1 0 .25 5.65" />
+          </svg>
+          <span>{redoStatus === "requesting" ? "Redoing…" : "Redo"}</span>
+        </button>
+        <button
           className="oa-audio"
           type="button"
           onClick={narrationIsActive ? () => playerRef.current?.stop() : playNarration}
@@ -206,7 +240,11 @@ export function Overlay() {
           →
         </button>
         <span className="oa-sr-only" aria-live="polite">
-          {playbackStatus === "failed" ? "Narration audio unavailable. Follow the on-screen text." : ""}
+          {redoStatus === "failed"
+            ? "Could not request the step redo. Try again."
+            : playbackStatus === "failed"
+              ? "Narration audio unavailable. Follow the on-screen text."
+              : ""}
         </span>
       </nav>
     </div>
@@ -221,4 +259,19 @@ function rectOf(element: HTMLElement | null): Rectangle | null {
 
 export function dispatchOverlayCommand(command: OverlayCommand) {
   commandBus.dispatch(command);
+}
+
+export function createStepRedoRequestedEvent(
+  tutorialId: string,
+  stepId: string,
+  stepNumber: number,
+  timestampMs = Date.now()
+) {
+  return {
+    type: "tutorial.step.redo.requested" as const,
+    tutorial_id: tutorialId,
+    step_id: stepId,
+    step_number: stepNumber,
+    timestamp_ms: timestampMs
+  };
 }

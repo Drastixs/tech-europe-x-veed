@@ -149,6 +149,26 @@
   font-size: 14px;
 }
 
+.oa-nav .oa-redo {
+  gap: 6px;
+  min-width: auto;
+  height: 34px;
+  padding: 0 10px;
+  color: var(--oa-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.oa-redo svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
 .oa-sr-only {
   position: absolute;
   width: 1px;
