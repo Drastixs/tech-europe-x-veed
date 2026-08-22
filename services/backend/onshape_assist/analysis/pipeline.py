@@ -17,12 +17,17 @@ from pydantic import ValidationError
 from onshape_assist.analysis import fal, prompts
 from onshape_assist.analysis.fal import FalError, Runner
 from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
+from onshape_assist.analysis.validation import AnalysisContractError, validate_payload
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 
 
 class AnalysisError(RuntimeError):
     """Raised when the pipeline cannot produce a valid result."""
+
+    def __init__(self, message: str, *, detail: dict[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail
 
 
 def extract_json(text: str) -> dict:
@@ -76,20 +81,6 @@ def _dump_debug(payload: dict) -> str:
     ) as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
         return handle.name
-
-
-def _fill_video_meta(result: AnalysisResult, request: AnalysisRequest) -> None:
-    """Backfill video metadata from the request when the model omits it."""
-    video = result.video
-    if not video.url:
-        video.url = request.video_url
-    if not video.application:
-        video.application = request.application
-    if request.analysis_scope is not None:
-        if not video.analyzed_start_ms:
-            video.analyzed_start_ms = request.analysis_scope.start_ms
-        if not video.analyzed_end_ms:
-            video.analyzed_end_ms = request.analysis_scope.end_ms
 
 
 def enforce_constraints(result: AnalysisResult, request: AnalysisRequest) -> AnalysisResult:
@@ -195,7 +186,11 @@ async def analyze_video_async(
             f"for offline debugging): {exc}"
         ) from exc
 
-    _fill_video_meta(result, request)
+    try:
+        validate_payload(payload, request)
+    except AnalysisContractError as exc:
+        raise AnalysisError(str(exc), detail=exc.model_dump()) from exc
+
     enforce_constraints(result, request)
 
     if enrichment_task is not None:

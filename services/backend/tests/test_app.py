@@ -2,6 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+import onshape_assist.app as app_module
+from onshape_assist.analysis.pipeline import AnalysisError
 from onshape_assist.app import app, relay
 
 
@@ -124,6 +126,33 @@ def test_invalid_move_missing_y_is_rejected():
     response = client.post("/commands", json={"type": "move", "x": 20})
 
     assert response.status_code == 422
+
+
+def test_analyze_returns_versioned_contract_validation_error(monkeypatch):
+    async def invalid_analysis(*_args, **_kwargs):
+        raise AnalysisError(
+            "analysis output failed strict contract validation",
+            detail={
+                "version": "analysis-error/v1",
+                "code": "contract_validation_failed",
+                "violations": [
+                    {"path": "steps[0].actions[0].cursor_end", "message": "is required"}
+                ],
+            },
+        )
+
+    monkeypatch.setenv("FAL_KEY", "test-key")
+    monkeypatch.setattr(app_module, "analyze_video_async", invalid_analysis)
+    client = TestClient(app)
+
+    response = client.post("/analyze", json={"video_url": "https://video.test/tutorial.mp4"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "version": "analysis-error/v1",
+        "code": "contract_validation_failed",
+        "violations": [{"path": "steps[0].actions[0].cursor_end", "message": "is required"}],
+    }
 
 
 def test_full_tutorial_plan_can_be_loaded_and_relayed_at_runtime():

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 ActionType = Literal[
     "move",
@@ -36,6 +36,12 @@ class AnalysisScope(BaseModel):
 
     start_ms: int = Field(ge=0)
     end_ms: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_time_range(self) -> AnalysisScope:
+        if self.end_ms <= self.start_ms:
+            raise ValueError("analysis_scope.end_ms must be later than analysis_scope.start_ms")
+        return self
 
 
 class AnalysisRequest(BaseModel):
@@ -132,8 +138,15 @@ class Action(BaseModel):
         if isinstance(value, str):
             candidate = value.strip().lower().replace("-", "_").replace(" ", "_")
             allowed = {
-                "move", "click", "double_click", "drag", "keypress",
-                "type", "scroll", "wait", "selection",
+                "move",
+                "click",
+                "double_click",
+                "drag",
+                "keypress",
+                "type",
+                "scroll",
+                "wait",
+                "selection",
             }
             return candidate if candidate in allowed else "move"
         return value
