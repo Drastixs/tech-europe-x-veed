@@ -55,7 +55,7 @@ export const tutorialPlanFixture: TutorialPlan = {
         retry: "I'll check the screen again.",
         target_relocated: "The target moved, so I'll locate it again.",
         validation_failed: "That did not open, so I'll pause.",
-        user_interrupt: "You moved the mouse, so I'll stop."
+        user_interrupt: "You selected takeover, so I'll stop."
       },
       expected_end_state: "Sketch 1 is highlighted.",
       uncertainties: []
@@ -94,7 +94,7 @@ export const tutorialPlanFixture: TutorialPlan = {
         retry: "I'll locate Revolve again.",
         target_relocated: "Revolve moved, so I'll locate it again.",
         validation_failed: "Revolve did not open, so I'll pause.",
-        user_interrupt: "You moved the mouse, so I'll stop."
+        user_interrupt: "You selected takeover, so I'll stop."
       },
       expected_end_state: "The Revolve dialog is open.",
       uncertainties: ["Toolbar position can vary."]

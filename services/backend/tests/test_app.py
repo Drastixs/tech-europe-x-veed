@@ -63,7 +63,7 @@ def tutorial_plan() -> dict:
                     "retry": "I'll check the screen again.",
                     "target_relocated": "The target moved, so I'll locate it again.",
                     "validation_failed": "That did not open, so I'll pause.",
-                    "user_interrupt": "You moved the mouse, so I'll stop.",
+                    "user_interrupt": "You selected takeover, so I'll stop.",
                 },
                 "expected_end_state": "The Revolve dialog is open.",
                 "uncertainties": ["Toolbar position may vary."],
@@ -109,6 +109,7 @@ def test_command_wraps_in_versioned_envelope():
         "direction": None,
         "plan": None,
         "step": None,
+        "runtime_session": None,
     }
 
 

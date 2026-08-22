@@ -37,15 +37,29 @@ describe("overlay controller", () => {
   });
 
   it("stores the complete plan and selects its requested rich step", () => {
+    const runtimeSession = {
+      contract_version: 1 as const,
+      session_id: "session-1",
+      state_snapshot: {
+        session_id: "session-1",
+        tutorial_id: tutorialPlanFixture.tutorial_id,
+        step_id: tutorialPlanFixture.steps[1]!.step_id,
+        state: "waiting" as const,
+        sequence: 0
+      },
+      runtime_events: []
+    };
     const state = reduceOverlayState(initialOverlayState, {
       type: "load_tutorial",
       plan: tutorialPlanFixture,
-      step: 2
+      step: 2,
+      runtime_session: runtimeSession
     });
 
     expect(state.plan).toBe(tutorialPlanFixture);
     expect(state.steps).toBe(tutorialPlanFixture.steps);
     expect(state.step).toBe(2);
+    expect(state.runtimeSession).toBe(runtimeSession);
     expect(state.steps[1]?.narration.detailed.text).toContain("open Revolve");
     expect(state.steps[1]?.actions[0]?.target_label).toBe("Revolve");
   });
