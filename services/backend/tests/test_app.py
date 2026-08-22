@@ -177,8 +177,9 @@ def test_invalid_nested_tutorial_data_is_rejected():
 def test_websocket_rejects_unknown_web_origin():
     client = TestClient(app)
 
-    with pytest.raises(WebSocketDisconnect) as rejected, client.websocket_connect(
-        "/ws/extension", headers={"origin": "https://malicious.example"}
+    with (
+        pytest.raises(WebSocketDisconnect) as rejected,
+        client.websocket_connect("/ws/extension", headers={"origin": "https://malicious.example"}),
     ):
         pass
 
