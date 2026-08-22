@@ -262,7 +262,7 @@ async def analyze(
             with_enrichment=enrichment,
         )
     except AnalysisError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=exc.detail or str(exc)) from exc
 
 
 @app.post("/tutorials/plan", response_model=DemoEnvelope)

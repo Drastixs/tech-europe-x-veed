@@ -3,8 +3,7 @@ import json
 import pytest
 
 from onshape_assist.analysis import fal, prompts
-from onshape_assist.analysis.models import AnalysisRequest
-from onshape_assist.analysis.models import AnalysisResult
+from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
 from onshape_assist.analysis.pipeline import (
     AnalysisError,
     analyze_video,
@@ -26,7 +25,7 @@ SAMPLE_PRIMARY = {
         "segments": [
             {
                 "start_ms": 259000,
-                "end_ms": 264500,
+                "end_ms": 273000,
                 "speaker": "instructor",
                 "text": "Make sure no straight lines in the sketch.",
                 "confidence": 0.92,
@@ -68,6 +67,12 @@ SAMPLE_PRIMARY = {
 }
 
 
+def sample_for_url(video_url: str) -> dict:
+    payload = json.loads(json.dumps(SAMPLE_PRIMARY))
+    payload["video"]["url"] = video_url
+    return payload
+
+
 def make_runner(primary_payload, enrichment_text="A detailed UI description."):
     """Return an async runner that dispatches on the fal model id."""
 
@@ -91,7 +96,7 @@ def test_extract_json_handles_surrounding_prose():
 
 def test_pipeline_parses_contract_for_direct_url():
     request = AnalysisRequest(video_url="https://media.example/clip.mp4")
-    result = analyze_video(request, runner=make_runner(SAMPLE_PRIMARY))
+    result = analyze_video(request, runner=make_runner(sample_for_url(request.video_url)))
 
     assert result.video.application == "Onshape"
     assert result.steps[0].actions[0].target_label == "OK"
@@ -101,41 +106,68 @@ def test_pipeline_parses_contract_for_direct_url():
 
 def test_youtube_skips_enrichment_pass():
     request = AnalysisRequest(video_url="https://www.youtube.com/watch?v=wSBLOhIFz6s")
-    result = analyze_video(request, runner=make_runner(SAMPLE_PRIMARY))
+    result = analyze_video(request, runner=make_runner(sample_for_url(request.video_url)))
 
     # YouTube links are not supported by video-understanding, so no scene review.
     assert result.scene_review is None
     assert result.steps[0].narration.startswith("I'm confirming")
 
 
-def test_video_meta_backfilled_from_request():
+def test_pipeline_rejects_missing_video_metadata_instead_of_backfilling():
     payload = {**SAMPLE_PRIMARY, "video": {"url": "", "application": ""}}
     request = AnalysisRequest(
         video_url="https://www.youtube.com/watch?v=abc",
         analysis_scope={"start_ms": 1000, "end_ms": 2000},
     )
-    result = analyze_video(request, runner=make_runner(payload))
+    with pytest.raises(AnalysisError) as raised:
+        analyze_video(request, runner=make_runner(payload))
 
-    assert result.video.url == "https://www.youtube.com/watch?v=abc"
-    assert result.video.analyzed_start_ms == 1000
-    assert result.video.analyzed_end_ms == 2000
+    assert raised.value.detail["code"] == "contract_validation_failed"
+    assert {item["path"] for item in raised.value.detail["violations"]} >= {
+        "video.url",
+        "video.application",
+    }
 
 
-def test_stringy_null_fields_are_coerced():
-    # Models sometimes emit the literal string "null" instead of JSON null.
-    payload = json.loads(json.dumps(SAMPLE_PRIMARY))
+def test_pipeline_rejects_malformed_action_instead_of_coercing_it():
+    payload = sample_for_url("https://www.youtube.com/watch?v=abc")
     action = payload["steps"][0]["actions"][0]
     action["mouse_button"] = "null"
     action["target_label"] = "none"
     action["action_type"] = "double-click"
 
     request = AnalysisRequest(video_url="https://www.youtube.com/watch?v=abc")
-    result = analyze_video(request, runner=make_runner(payload))
+    with pytest.raises(AnalysisError) as raised:
+        analyze_video(request, runner=make_runner(payload))
 
-    coerced = result.steps[0].actions[0]
-    assert coerced.mouse_button is None
-    assert coerced.target_label is None
-    assert coerced.action_type == "double_click"
+    assert raised.value.detail["code"] == "contract_validation_failed"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected_path"),
+    [
+        (
+            lambda payload: payload["full_transcript"]["segments"].__setitem__(
+                0, {**payload["full_transcript"]["segments"][0], "start_ms": 259001}
+            ),
+            "full_transcript.segments",
+        ),
+        (
+            lambda payload: payload["steps"][0]["actions"][0].pop("cursor_end"),
+            "steps[0].actions[0].cursor_end",
+        ),
+    ],
+)
+def test_pipeline_rejects_incomplete_transcript_or_pointer_evidence(mutate, expected_path):
+    payload = sample_for_url("https://www.youtube.com/watch?v=abc")
+    mutate(payload)
+
+    with pytest.raises(AnalysisError) as raised:
+        analyze_video(
+            AnalysisRequest(video_url=payload["video"]["url"]), runner=make_runner(payload)
+        )
+
+    assert expected_path in {item["path"] for item in raised.value.detail["violations"]}
 
 
 def test_scoped_prompt_injects_hard_time_bounds():
@@ -188,9 +220,7 @@ def test_guardrail_drops_out_of_range_and_sorts_actions():
             }
         ],
     }
-    request = AnalysisRequest(
-        video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000}
-    )
+    request = AnalysisRequest(video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000})
     result = enforce_constraints(AnalysisResult.model_validate(payload), request)
 
     actions = result.steps[0].actions
@@ -219,9 +249,7 @@ def test_guardrail_drops_step_that_loses_all_actions_but_keeps_narration_step():
             },
         ],
     }
-    request = AnalysisRequest(
-        video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000}
-    )
+    request = AnalysisRequest(video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000})
     result = enforce_constraints(AnalysisResult.model_validate(payload), request)
     assert [s.step_id for s in result.steps] == ["keepme"]
 
