@@ -1,0 +1,16 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Editor and OS metadata
+.DS_Store
+.idea/
+.vscode/
+
+# Common generated output
+node_modules/
+dist/
+build/
+coverage/
+*.log
