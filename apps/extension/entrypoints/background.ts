@@ -1,4 +1,5 @@
 import { isDemoEnvelope } from "../src/overlay/protocol";
+import { createTutorialFromVideo } from "../src/popup/tutorial-api";
 
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
@@ -73,7 +74,19 @@ export default defineBackground(() => {
   };
 
   browser.runtime.onMessage.addListener((message: unknown, sender) => {
-    const candidate = message as { channel?: string; type?: string; event?: unknown };
+    const candidate = message as {
+      channel?: string;
+      type?: string;
+      event?: unknown;
+      videoUrl?: unknown;
+    };
+    if (
+      candidate.channel === "onshape-assist" &&
+      candidate.type === "tutorial.create" &&
+      typeof candidate.videoUrl === "string"
+    ) {
+      return createTutorialFromVideo(candidate.videoUrl, crypto.randomUUID());
+    }
     if (candidate.channel !== "onshape-assist" || sender.tab?.id === undefined) return;
     if (candidate.type === "tab.ready") void registerTab(sender.tab.id);
     if (candidate.event) {

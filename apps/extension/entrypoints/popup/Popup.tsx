@@ -1,11 +1,13 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
+import type { TutorialCreationResult } from "../../src/popup/tutorial-api";
 import { isOnshapeDocumentUrl, validateTutorialUrl } from "../../src/popup/tutorial-url";
 
 type TabState = "checking" | "ready" | "blocked";
 type SubmissionState =
   | { type: "idle" }
+  | { type: "loading" }
   | { type: "error"; message: string }
-  | { type: "success"; url: string };
+  | { type: "success"; tutorialId: string };
 
 export function Popup() {
   const inputId = useId();
@@ -31,7 +33,7 @@ export function Popup() {
     };
   }, []);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (tabState !== "ready") return;
 
@@ -41,8 +43,29 @@ export function Popup() {
       return;
     }
 
-    // Stub only. A later orchestration change will send this URL to the backend.
-    setSubmission({ type: "success", url: result.url });
+    setSubmission({ type: "loading" });
+    let response: TutorialCreationResult | undefined;
+    try {
+      response = (await browser.runtime.sendMessage({
+        channel: "onshape-assist",
+        type: "tutorial.create",
+        videoUrl: result.url
+      })) as TutorialCreationResult | undefined;
+    } catch {
+      setSubmission({
+        type: "error",
+        message: "The extension background service is unavailable. Reopen the extension and try again."
+      });
+      return;
+    }
+    if (!response?.ok) {
+      setSubmission({
+        type: "error",
+        message: response?.message ?? "The tutorial could not be prepared. Try again."
+      });
+      return;
+    }
+    setSubmission({ type: "success", tutorialId: response.tutorialId });
   };
 
   const openOnshape = () => {
@@ -86,7 +109,11 @@ export function Popup() {
           </button>
         </section>
       ) : (
-        <form className="tutorial-form" onSubmit={submit} aria-busy={tabState === "checking"}>
+        <form
+          className="tutorial-form"
+          onSubmit={(event) => void submit(event)}
+          aria-busy={tabState === "checking" || submission.type === "loading"}
+        >
           <label htmlFor={inputId}>Tutorial URL</label>
           <div className={`url-field ${submission.type === "error" ? "has-error" : ""}`}>
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -99,7 +126,7 @@ export function Popup() {
               autoComplete="url"
               placeholder="https://youtube.com/watch?v=..."
               value={tutorialUrl}
-              disabled={!isReady}
+              disabled={!isReady || submission.type === "loading"}
               aria-describedby={helpId}
               aria-invalid={submission.type === "error"}
               onChange={(event) => {
@@ -112,15 +139,29 @@ export function Popup() {
           <div id={helpId} className="field-message" aria-live="polite">
             {submission.type === "error" ? (
               <span className="error-message">{submission.message}</span>
+            ) : submission.type === "loading" ? (
+              <span>Analyzing the video and preparing narration. Keep Onshape open.</span>
             ) : submission.type === "success" ? (
-              <span className="success-message">Tutorial ready. Backend upload is stubbed for now.</span>
+              <span className="success-message">Tutorial ready in Onshape.</span>
             ) : (
               <span>Paste a public video or tutorial link.</span>
             )}
           </div>
 
-          <button className="primary-button" type="submit" disabled={!isReady || tutorialUrl.trim().length === 0}>
-            <span>{submission.type === "success" ? "Tutorial added" : "Add tutorial"}</span>
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={
+              !isReady || tutorialUrl.trim().length === 0 || submission.type === "loading"
+            }
+          >
+            <span>
+              {submission.type === "loading"
+                ? "Preparing tutorial…"
+                : submission.type === "success"
+                  ? "Tutorial added"
+                  : "Add tutorial"}
+            </span>
             {submission.type === "success" ? (
               <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
                 <path d="m4.5 10.2 3.4 3.4 7.6-7.7" />
@@ -134,7 +175,7 @@ export function Popup() {
 
       <footer>
         <span className="privacy-dot" aria-hidden="true" />
-        The URL stays local in this stub.
+        The local relay prepares and sends guidance to this Onshape tab.
       </footer>
     </main>
   );

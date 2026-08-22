@@ -15,6 +15,7 @@ from onshape_assist.analysis import fal
 from onshape_assist.analysis.models import AnalysisRequest, AnalysisResult
 from onshape_assist.analysis.pipeline import AnalysisError, analyze_video_async
 
+from .config import load_backend_env
 from .launcher_page import render_launcher_page
 from .narration import (
     NarrationConfigurationError,
@@ -176,6 +177,23 @@ class TutorialPlanningRequest(BaseModel):
     step: Annotated[int, Field(ge=1)] = 1
 
 
+class TutorialFromVideoRequest(AnalysisRequest):
+    """One-call handoff from a tutorial video to a relayed tutorial plan."""
+
+    tutorial_id: str = Field(min_length=1)
+    runtime_preferences: RuntimePreferences = Field(
+        default_factory=lambda: RuntimePreferences(detailed_narration=False)
+    )
+    voice: Voice = Field(
+        default_factory=lambda: Voice(
+            provider="fal_elevenlabs",
+            voice_id="Rachel",
+            speaking_rate=1.0,
+        )
+    )
+    step: Annotated[int, Field(ge=1)] = 1
+
+
 class RestoreRequest(BaseModel):
     baseline: OnshapeSnapshot
     expected_microversion_id: str = Field(min_length=1)
@@ -327,6 +345,46 @@ async def analyze(
     gemini_model: str = fal.DEFAULT_GEMINI_MODEL,
     enrichment: bool = True,
 ) -> AnalysisResult:
+    return await _analyze_video(
+        request,
+        gemini_model=gemini_model,
+        enrichment=enrichment,
+    )
+
+
+@app.post("/tutorials/from-video", response_model=DemoEnvelope)
+async def tutorial_from_video(
+    request: TutorialFromVideoRequest,
+    gemini_model: str = fal.DEFAULT_GEMINI_MODEL,
+    enrichment: bool = True,
+) -> DemoEnvelope:
+    """Analyze a video, plan it, generate narration, and relay the completed tutorial."""
+    analysis_request = AnalysisRequest.model_validate(request.model_dump())
+    analysis = await _analyze_video(
+        analysis_request,
+        gemini_model=gemini_model,
+        enrichment=enrichment,
+    )
+    return await _plan_tutorial(
+        TutorialPlanningRequest(
+            video_analysis=analysis.model_dump(exclude_none=True),
+            tutorial_id=request.tutorial_id,
+            application=request.application,
+            output_language=request.output_language,
+            runtime_preferences=request.runtime_preferences,
+            voice=request.voice,
+            step=request.step,
+        )
+    )
+
+
+async def _analyze_video(
+    request: AnalysisRequest,
+    *,
+    gemini_model: str,
+    enrichment: bool,
+) -> AnalysisResult:
+    load_backend_env()
     if not os.environ.get("FAL_KEY"):
         raise HTTPException(status_code=503, detail="FAL_KEY is not configured on the server")
     try:
@@ -341,6 +399,10 @@ async def analyze(
 
 @app.post("/tutorials/plan", response_model=DemoEnvelope)
 async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
+    return await _plan_tutorial(request)
+
+
+async def _plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
     planning_input = {
         "video_analysis": request.video_analysis,
         "tutorial_metadata": {

@@ -47,6 +47,27 @@ npm run build
 
 In Chromium, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `apps/extension/.output/chrome-mv3`. Then open an Onshape document.
 
+Paste a public YouTube or video URL into the extension popup and choose **Add tutorial**. The
+extension background worker keeps the request alive while the local backend runs the complete
+pipeline:
+
+```text
+video URL → fal video analysis → strict analysis contract → tutorial planning
+          → concise + detailed fal ElevenLabs narration → WebSocket → Onshape overlay
+```
+
+The same flow is available directly over HTTP:
+
+```bash
+curl --fail-with-body http://127.0.0.1:8000/tutorials/from-video \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "video_url": "https://www.youtube.com/watch?v=wSBLOhIFz6s",
+    "tutorial_id": "maker-coin",
+    "runtime_preferences": {"detailed_narration": false}
+  }'
+```
+
 Drive the overlay from another terminal:
 
 ```bash
@@ -98,8 +119,9 @@ curl -X POST http://127.0.0.1:8000/analyze \
   -d @services/backend/examples/maker-coin-clip.json
 ```
 
-The output validates against the PRD JSON contract and becomes the input to the
-computer-use and browser-state systems.
+The output validates against the PRD JSON contract. `POST /tutorials/from-video` passes that
+validated output directly into tutorial planning and voice narration. `POST /analyze` and
+`POST /tutorials/plan` remain available for testing either stage independently.
 
 ## Tutorial planning
 
