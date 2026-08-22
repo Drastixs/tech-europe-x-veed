@@ -1,4 +1,8 @@
-import { isDemoEnvelope } from "../src/overlay/protocol";
+import { captureObservation } from "../src/computer-use/capture";
+import {
+  isCaptureObservationCommand,
+  isDemoEnvelope
+} from "../src/overlay/protocol";
 
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
@@ -44,6 +48,15 @@ export default defineBackground(() => {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
   };
 
+  const sendExtensionEvent = (event: unknown, tabId?: number) => {
+    sendEvent({
+      version: 1,
+      type: "extension.event",
+      tab_id: tabId ?? registeredTabId ?? null,
+      event
+    });
+  };
+
   const connect = () => {
     if (stopped) return;
     socket = new WebSocket(RELAY_URL);
@@ -61,7 +74,33 @@ export default defineBackground(() => {
     socket.addEventListener("message", (event) => {
       try {
         const envelope = JSON.parse(String(event.data));
-        if (isDemoEnvelope(envelope)) void sendToRegisteredTab(envelope.command);
+        if (!isDemoEnvelope(envelope)) return;
+        const command = envelope.command;
+        if (isCaptureObservationCommand(command)) {
+          void (async () => {
+            const tab = await activeOnshapeTab();
+            const captured = await captureObservation(
+              command,
+              tab?.id !== undefined && tab.windowId !== undefined
+                ? { id: tab.id, windowId: tab.windowId, url: tab.url }
+                : undefined,
+              {
+                captureVisibleTab: (windowId) =>
+                  browser.tabs.captureVisibleTab(windowId, { format: "png" }),
+                readViewport: async (tabId) => {
+                  const response = await browser.tabs.sendMessage(tabId, {
+                    channel: "onshape-assist",
+                    type: "viewport.request"
+                  });
+                  return response as { width: number; height: number; device_pixel_ratio: number };
+                }
+              }
+            );
+            sendExtensionEvent(captured, tab?.id);
+          })();
+          return;
+        }
+        void sendToRegisteredTab(command);
       } catch {
         // Ignore malformed local relay traffic.
       }
@@ -76,14 +115,7 @@ export default defineBackground(() => {
     const candidate = message as { channel?: string; type?: string; event?: unknown };
     if (candidate.channel !== "onshape-assist" || sender.tab?.id === undefined) return;
     if (candidate.type === "tab.ready") void registerTab(sender.tab.id);
-    if (candidate.event) {
-      sendEvent({
-        version: 1,
-        type: "extension.event",
-        tab_id: sender.tab.id,
-        event: candidate.event
-      });
-    }
+    if (candidate.event) sendExtensionEvent(candidate.event, sender.tab.id);
   });
 
   browser.tabs.onActivated.addListener(({ tabId }) => {

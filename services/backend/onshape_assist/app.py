@@ -1,13 +1,28 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
+from .computer_use import (
+    ComputerUseError,
+    DemonstrationResult,
+    DemoRunner,
+    ExtensionEventBroker,
+    PixelPoint,
+)
+from .holo import (
+    HoloClient,
+    HoloConfigurationError,
+    HoloError,
+    LocalizationContext,
+    LocalizedPoint,
+)
 from .narration import (
     NarrationConfigurationError,
     NarrationError,
@@ -16,16 +31,6 @@ from .narration import (
 from .planner import OpenAIPlanner, PlannerError
 
 Direction = Literal["left", "right"]
-CommandType = Literal[
-    "show",
-    "hide",
-    "move",
-    "click",
-    "navigate",
-    "load_tutorial",
-    "arm_takeover",
-    "disarm_takeover",
-]
 
 
 class TutorialContractModel(BaseModel):
@@ -260,14 +265,90 @@ class TutorialPlanningRequest(BaseModel):
     step: Annotated[int, Field(ge=1)] = 1
 
 
-class DemoCommand(BaseModel):
-    type: CommandType
-    x: Annotated[int | None, Field(ge=0)] = None
-    y: Annotated[int | None, Field(ge=0)] = None
+class CommandBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ShowCommand(CommandBase):
+    type: Literal["show"]
+
+
+class HideCommand(CommandBase):
+    type: Literal["hide"]
+
+
+class MoveCommand(CommandBase):
+    type: Literal["move"]
+    x: Annotated[int, Field(ge=0)]
+    y: Annotated[int, Field(ge=0)]
     duration_ms: Annotated[int | None, Field(ge=0, le=10_000)] = None
-    direction: Direction | None = None
-    plan: TutorialPlan | None = None
+
+
+class ClickCommand(CommandBase):
+    type: Literal["click"]
+
+
+class NavigateCommand(CommandBase):
+    type: Literal["navigate"]
+    direction: Direction
+
+
+class LoadTutorialCommand(CommandBase):
+    type: Literal["load_tutorial"]
+    plan: TutorialPlan
     step: Annotated[int | None, Field(ge=1)] = None
+
+
+class ArmTakeoverCommand(CommandBase):
+    type: Literal["arm_takeover"]
+
+
+class DisarmTakeoverCommand(CommandBase):
+    type: Literal["disarm_takeover"]
+
+
+class CaptureObservationCommand(CommandBase):
+    type: Literal["capture_observation"]
+    request_id: str = Field(min_length=1)
+
+
+class ExecuteActionCommand(CommandBase):
+    type: Literal["execute_action"]
+    action_id: str = Field(min_length=1)
+    action: TutorialAction
+    target: PixelPoint
+    end_target: PixelPoint | None
+
+
+DemoCommand = Annotated[
+    ShowCommand
+    | HideCommand
+    | MoveCommand
+    | ClickCommand
+    | NavigateCommand
+    | LoadTutorialCommand
+    | ArmTakeoverCommand
+    | DisarmTakeoverCommand
+    | CaptureObservationCommand
+    | ExecuteActionCommand,
+    Field(discriminator="type"),
+]
+demo_command_adapter = TypeAdapter(DemoCommand)
+
+
+class ComputerUseDemonstrationRequest(BaseModel):
+    action: TutorialAction
+    step_goal: str | None = None
+    execute: bool = True
+
+
+class HoloLocalizationRequest(BaseModel):
+    screenshot_data_url: str = Field(min_length=1)
+    target_description: str = Field(min_length=1)
+    target_label: str | None = None
+    ui_region: str | None = None
+    semantic_action: str | None = None
+    step_goal: str | None = None
 
 
 class DemoEnvelope(BaseModel):
@@ -286,7 +367,10 @@ class Relay:
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self._clients.add(websocket)
-        if self.last_envelope:
+        if self.last_envelope and self.last_envelope.command.type not in {
+            "capture_observation",
+            "execute_action",
+        }:
             await websocket.send_json(self.last_envelope.model_dump())
 
     def disconnect(self, websocket: WebSocket) -> None:
@@ -316,13 +400,16 @@ class Relay:
 
 
 relay = Relay()
+extension_events = ExtensionEventBroker()
 
 PlannerFactory = Callable[[], OpenAIPlanner]
 NarrationEnricher = Callable[[TutorialPlan], Awaitable[TutorialPlan]]
+HoloFactory = Callable[[], HoloClient]
 
 
 planner_factory: PlannerFactory = OpenAIPlanner
 narration_enricher: NarrationEnricher = enrich_plan_narration
+holo_factory: HoloFactory = HoloClient
 
 
 @asynccontextmanager
@@ -346,6 +433,63 @@ async def command(command: DemoCommand) -> DemoEnvelope:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return await relay.publish(normalized)
+
+
+async def publish_computer_use_command(command_data: dict[str, Any]) -> None:
+    command = demo_command_adapter.validate_python(command_data)
+    await relay.publish(command)
+
+
+async def request_extension_event(
+    command_data: dict[str, Any], correlation_id: str, timeout_seconds: float
+) -> dict[str, Any]:
+    future = extension_events.prepare(correlation_id)
+    try:
+        await publish_computer_use_command(command_data)
+        return await extension_events.wait(correlation_id, future, timeout_seconds)
+    except Exception:
+        extension_events.cancel(correlation_id)
+        raise
+
+
+@app.post("/computer-use/localize", response_model=LocalizedPoint)
+async def localize_computer_target(request: HoloLocalizationRequest) -> LocalizedPoint:
+    try:
+        return await holo_factory().localize(
+            request.screenshot_data_url,
+            LocalizationContext(
+                target_description=request.target_description,
+                target_label=request.target_label,
+                ui_region=request.ui_region,
+                semantic_action=request.semantic_action,
+                step_goal=request.step_goal,
+            ),
+        )
+    except HoloConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HoloError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/computer-use/demonstrate", response_model=DemonstrationResult)
+async def demonstrate_computer_action(
+    request: ComputerUseDemonstrationRequest,
+) -> DemonstrationResult:
+    runner = DemoRunner(
+        holo=holo_factory(),
+        publish_command=publish_computer_use_command,
+        request_extension=request_extension_event,
+    )
+    try:
+        return await runner.demonstrate(
+            request.action, step_goal=request.step_goal, execute=request.execute
+        )
+    except HoloConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HoloError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (ComputerUseError, ValidationError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/tutorials/plan", response_model=DemoEnvelope)
@@ -405,7 +549,7 @@ async def plan_tutorial(request: TutorialPlanningRequest) -> DemoEnvelope:
             detail="Narration enrichment produced an invalid tutorial plan",
         ) from exc
 
-    command = DemoCommand(type="load_tutorial", plan=enriched, step=request.step)
+    command = LoadTutorialCommand(type="load_tutorial", plan=enriched, step=request.step)
     try:
         normalized = normalize_command(command)
     except ValueError as exc:
@@ -427,19 +571,26 @@ async def extension_socket(websocket: WebSocket) -> None:
     await relay.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            try:
+                message = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(message, dict)
+                and message.get("type") == "extension.event"
+                and isinstance(message.get("event"), dict)
+            ):
+                extension_events.resolve(message["event"])
     except WebSocketDisconnect:
         relay.disconnect(websocket)
 
 
 def normalize_command(command: DemoCommand) -> DemoCommand:
-    if command.type == "move" and (command.x is None or command.y is None):
-        raise ValueError("move requires x and y")
-    if command.type == "navigate" and command.direction is None:
-        raise ValueError("navigate requires direction")
-    if command.type == "load_tutorial":
-        if command.plan is None:
-            raise ValueError("load_tutorial requires a plan")
-        if command.step is not None and command.step > len(command.plan.steps):
-            raise ValueError("load_tutorial step exceeds the number of steps")
+    if (
+        command.type == "load_tutorial"
+        and command.step is not None
+        and command.step > len(command.plan.steps)
+    ):
+        raise ValueError("load_tutorial step exceeds the number of steps")
     return command

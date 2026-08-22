@@ -1,7 +1,7 @@
 import type {
-  DemoCommand,
   Direction,
   NarrationVariant,
+  OverlayCommand,
   TutorialPlan,
   TutorialStep
 } from "./protocol";
@@ -50,7 +50,7 @@ export function currentNarration(state: OverlayState): NarrationVariant | null {
 }
 
 export type LocalAction =
-  | DemoCommand
+  | OverlayCommand
   | { type: "takeover" }
   | { type: "clear_direction" }
   | { type: "set_narration_mode"; mode: NarrationMode };
@@ -142,11 +142,11 @@ export function hitTestNavigation(
   return null;
 }
 
-type Subscriber = (command: DemoCommand) => void;
+type Subscriber = (command: OverlayCommand) => void;
 const subscribers = new Set<Subscriber>();
 
 export const commandBus = {
-  dispatch(command: DemoCommand) {
+  dispatch(command: OverlayCommand) {
     subscribers.forEach((subscriber) => subscriber(command));
   },
   subscribe(subscriber: Subscriber) {

@@ -131,7 +131,7 @@ export type TutorialPlan = {
   steps: TutorialStep[];
 };
 
-export type DemoCommand =
+export type OverlayCommand =
   | { type: "show" }
   | { type: "hide" }
   | { type: "move"; x: number; y: number; duration_ms?: number | null }
@@ -140,6 +140,57 @@ export type DemoCommand =
   | { type: "load_tutorial"; plan: TutorialPlan; step?: number | null }
   | { type: "arm_takeover" }
   | { type: "disarm_takeover" };
+
+export type PixelPoint = { x: number; y: number };
+
+export type CaptureObservationCommand = {
+  type: "capture_observation";
+  request_id: string;
+};
+
+export type ExecuteActionCommand = {
+  type: "execute_action";
+  action_id: string;
+  action: TutorialAction;
+  target: PixelPoint;
+  end_target: PixelPoint | null;
+};
+
+export type ComputerUseCommand = CaptureObservationCommand | ExecuteActionCommand;
+export type DemoCommand = OverlayCommand | ComputerUseCommand;
+
+export type ViewportObservation = {
+  width: number;
+  height: number;
+  device_pixel_ratio: number;
+};
+
+export type ObservationCapturedEvent = {
+  type: "observation.captured";
+  request_id: string;
+  screenshot_data_url: string;
+  viewport: ViewportObservation;
+  url: string;
+};
+
+export type ObservationFailedEvent = {
+  type: "observation.failed";
+  request_id: string;
+  reason: string;
+};
+
+export type ActionCompletedEvent = {
+  type: "action.completed" | "action.failed";
+  action_id: string;
+  success: boolean;
+  reason: string | null;
+  element_description: string | null;
+};
+
+export type ComputerUseEvent =
+  | ObservationCapturedEvent
+  | ObservationFailedEvent
+  | ActionCompletedEvent;
 
 export type DemoEnvelope = {
   version: 1;
@@ -168,10 +219,28 @@ export const isDemoEnvelope = (value: unknown): value is DemoEnvelope => {
     case "load_tutorial":
       return isTutorialPlan(command.plan) &&
         (command.step == null || isPositiveInteger(command.step));
+    case "capture_observation":
+      return isNonEmptyString(command.request_id);
+    case "execute_action":
+      return isNonEmptyString(command.action_id) &&
+        isTutorialAction(command.action) &&
+        isPixelPoint(command.target) &&
+        (command.end_target === null || isPixelPoint(command.end_target));
     default:
       return false;
   }
 };
+
+export const isOverlayCommand = (command: DemoCommand): command is OverlayCommand =>
+  command.type !== "capture_observation" && command.type !== "execute_action";
+
+export const isCaptureObservationCommand = (
+  command: DemoCommand
+): command is CaptureObservationCommand => command.type === "capture_observation";
+
+export const isExecuteActionCommand = (
+  command: DemoCommand
+): command is ExecuteActionCommand => command.type === "execute_action";
 
 const isTutorialPlan = (value: unknown): value is TutorialPlan => {
   if (!isRecord(value)) return false;
@@ -281,6 +350,8 @@ const isIntegerBetween = (value: unknown, minimum: number, maximum: number) =>
   Number.isInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
 const isNonEmptyStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.length > 0 && value.every(isNonEmptyString);
+const isPixelPoint = (value: unknown): value is PixelPoint =>
+  isRecord(value) && isNonNegativeNumber(value.x) && isNonNegativeNumber(value.y);
 
 const isNarration = (value: unknown): value is Narration =>
   isRecord(value) && isNarrationVariant(value.concise) && isNarrationVariant(value.detailed);

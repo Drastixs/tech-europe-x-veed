@@ -1,8 +1,19 @@
+import threading
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from onshape_assist.app import app, relay
+import onshape_assist.app as app_module
+from onshape_assist.app import (
+    CaptureObservationCommand,
+    DemoEnvelope,
+    Relay,
+    app,
+    relay,
+)
+from onshape_assist.holo import LocalizedPoint
 
 
 def tutorial_plan() -> dict:
@@ -104,9 +115,6 @@ def test_command_wraps_in_versioned_envelope():
         "x": 20,
         "y": 40,
         "duration_ms": None,
-        "direction": None,
-        "plan": None,
-        "step": None,
     }
 
 
@@ -256,3 +264,115 @@ def test_websocket_rejects_unknown_web_origin():
         pass
 
     assert rejected.value.code == 1008
+
+
+@pytest.mark.anyio
+async def test_reconnect_does_not_replay_ephemeral_computer_use_commands():
+    class FakeWebSocket:
+        def __init__(self):
+            self.accepted = False
+            self.sent: list[dict[str, Any]] = []
+
+        async def accept(self):
+            self.accepted = True
+
+        async def send_json(self, value):
+            self.sent.append(value)
+
+    local_relay = Relay()
+    local_relay.last_envelope = DemoEnvelope(
+        sequence=1,
+        sent_at="2026-08-22T00:00:00+00:00",
+        command=CaptureObservationCommand(
+            type="capture_observation", request_id="observation_1"
+        ),
+    )
+    websocket = FakeWebSocket()
+
+    await local_relay.connect(websocket)  # type: ignore[arg-type]
+
+    assert websocket.accepted is True
+    assert websocket.sent == []
+
+
+def test_computer_use_endpoint_round_trips_extension_events(monkeypatch):
+    class FakeHolo:
+        async def localize(self, screenshot_data_url, context):
+            assert screenshot_data_url == "data:image/png;base64,c2NyZWVu"
+            assert context.target_label == "Sketch 1"
+            return LocalizedPoint(x=500, y=250)
+
+    monkeypatch.setattr(app_module, "holo_factory", FakeHolo)
+    relay.last_envelope = None
+    responses = []
+
+    with TestClient(app) as client, client.websocket_connect(
+        "/ws/extension", headers={"origin": "https://cad.onshape.com"}
+    ) as websocket:
+        worker = threading.Thread(
+            target=lambda: responses.append(
+                client.post(
+                    "/computer-use/demonstrate",
+                    json={
+                        "action": tutorial_plan()["steps"][0]["actions"][0],
+                        "step_goal": "Open Revolve",
+                        "execute": True,
+                    },
+                )
+            )
+        )
+        worker.start()
+
+        capture = websocket.receive_json()
+        assert capture["command"]["type"] == "capture_observation"
+        request_id = capture["command"]["request_id"]
+        websocket.send_json(
+            {
+                "version": 1,
+                "type": "extension.event",
+                "tab_id": 7,
+                "event": {
+                    "type": "observation.captured",
+                    "request_id": request_id,
+                    "screenshot_data_url": "data:image/png;base64,c2NyZWVu",
+                    "viewport": {
+                        "width": 1440,
+                        "height": 900,
+                        "device_pixel_ratio": 1,
+                    },
+                    "url": "https://cad.onshape.com/documents/demo/w/one/e/two",
+                },
+            }
+        )
+
+        move = websocket.receive_json()
+        assert move["command"] == {
+            "type": "move",
+            "x": 720,
+            "y": 225,
+            "duration_ms": 420,
+        }
+        execute = websocket.receive_json()
+        assert execute["command"]["type"] == "execute_action"
+        assert execute["command"]["target"] == {"x": 720, "y": 225}
+        action_id = execute["command"]["action_id"]
+        websocket.send_json(
+            {
+                "version": 1,
+                "type": "extension.event",
+                "tab_id": 7,
+                "event": {
+                    "type": "action.completed",
+                    "action_id": action_id,
+                    "success": True,
+                    "reason": None,
+                    "element_description": "Sketch 1",
+                },
+            }
+        )
+        worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert responses[0].status_code == 200
+    assert responses[0].json()["success"] is True
+    assert responses[0].json()["viewport_target"] == {"x": 720, "y": 225}

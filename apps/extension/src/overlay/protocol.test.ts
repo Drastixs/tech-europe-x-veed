@@ -81,4 +81,28 @@ describe("tutorial plan protocol", () => {
   it("rejects an action without parameters", () => {
     expect(isDemoEnvelope(envelope(planWithAction(actionWith("click"))))).toBe(false);
   });
+
+  it("accepts correlated screenshot capture commands", () => {
+    expect(isDemoEnvelope({
+      version: 1,
+      sequence: 2,
+      sent_at: "2026-08-22T12:00:00Z",
+      command: { type: "capture_observation", request_id: "obs_1" }
+    })).toBe(true);
+  });
+
+  it("accepts executable tutorial actions with localized coordinates", () => {
+    expect(isDemoEnvelope({
+      version: 1,
+      sequence: 3,
+      sent_at: "2026-08-22T12:00:00Z",
+      command: {
+        type: "execute_action",
+        action_id: "action_1",
+        action: tutorialPlanFixture.steps[0]!.actions[0],
+        target: { x: 84, y: 298 },
+        end_target: null
+      }
+    })).toBe(true);
+  });
 });

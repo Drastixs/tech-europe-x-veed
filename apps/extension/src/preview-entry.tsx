@@ -1,12 +1,12 @@
 import { mountOverlay } from "./overlay/mount";
 import { connectOverlayRelay } from "./overlay/ws";
 import { dispatchOverlayCommand } from "./overlay/Overlay";
-import type { DemoCommand } from "./overlay/protocol";
+import type { OverlayCommand } from "./overlay/protocol";
 
 declare global {
   interface Window {
     OnshapeAssistPreview?: {
-      dispatch: (command: DemoCommand) => void;
+      dispatch: (command: OverlayCommand) => void;
       unmount: () => void;
     };
   }

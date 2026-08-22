@@ -1,5 +1,5 @@
 import { dispatchOverlayCommand } from "./Overlay";
-import { isDemoEnvelope } from "./protocol";
+import { isDemoEnvelope, isOverlayCommand } from "./protocol";
 
 export function connectOverlayRelay(url = "ws://127.0.0.1:8000/ws/extension") {
   let socket: WebSocket | null = null;
@@ -13,7 +13,9 @@ export function connectOverlayRelay(url = "ws://127.0.0.1:8000/ws/extension") {
     socket.addEventListener("message", (event) => {
       try {
         const envelope = JSON.parse(String(event.data));
-        if (isDemoEnvelope(envelope)) dispatchOverlayCommand(envelope.command);
+        if (isDemoEnvelope(envelope) && isOverlayCommand(envelope.command)) {
+          dispatchOverlayCommand(envelope.command);
+        }
       } catch {
         // Ignore malformed demo traffic.
       }
