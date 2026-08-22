@@ -197,6 +197,49 @@ def test_full_tutorial_plan_can_be_loaded_and_relayed_at_runtime():
     assert command["plan"]["steps"][0]["narration"]["detailed"]["duration_ms"] == 3200
 
 
+def test_load_tutorial_generates_pending_narration_before_relay(monkeypatch):
+    plan = tutorial_plan()
+    for variant in ("concise", "detailed"):
+        plan["steps"][0]["narration"][variant]["fal_elevenlabs_audio_url"] = (
+            f"pending://tts/open-revolve/{variant}"
+        )
+        plan["steps"][0]["narration"][variant]["duration_ms"] = 0
+
+    async def enrich(value):
+        enriched = value.model_copy(deep=True)
+        enriched.steps[0].narration.concise.fal_elevenlabs_audio_url = (
+            "https://audio.test/open-revolve-concise.mp3"
+        )
+        enriched.steps[0].narration.concise.duration_ms = 1500
+        enriched.steps[0].narration.detailed.fal_elevenlabs_audio_url = (
+            "https://audio.test/open-revolve-detailed.mp3"
+        )
+        enriched.steps[0].narration.detailed.duration_ms = 3300
+        return enriched
+
+    monkeypatch.setattr(app_module, "narration_enricher", enrich)
+    client = TestClient(app)
+    relay.last_envelope = None
+
+    with client.websocket_connect(
+        "/ws/extension", headers={"origin": "https://cad.onshape.com"}
+    ) as websocket:
+        response = client.post(
+            "/commands",
+            json={"type": "load_tutorial", "plan": plan, "step": 1},
+        )
+        relayed = websocket.receive_json()
+
+    assert response.status_code == 200
+    narration = relayed["command"]["plan"]["steps"][0]["narration"]
+    assert narration["concise"] == {
+        "text": "Let's revolve Sketch 1.",
+        "fal_elevenlabs_audio_url": "https://audio.test/open-revolve-concise.mp3",
+        "duration_ms": 1500,
+    }
+    assert narration["detailed"]["duration_ms"] == 3300
+
+
 def test_empty_tutorial_is_rejected():
     client = TestClient(app)
 

@@ -73,8 +73,6 @@ export function Overlay() {
     const takeOver = (event: Event) => {
       if (!takeoverArmedRef.current || !isLearnerTakeoverEvent(event)) return;
 
-      event.preventDefault();
-      event.stopImmediatePropagation();
       takeoverArmedRef.current = false;
       dispatch({ type: "takeover" });
       if (typeof browser !== "undefined") {

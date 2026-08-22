@@ -1,0 +1,394 @@
+{
+  "type": "load_tutorial",
+  "step": 1,
+  "plan": {
+    "tutorial_id": "circle-top-plane-revolve-center-axis",
+    "application": "Onshape",
+    "output_language": "en",
+    "runtime_preferences": {
+      "detailed_narration": false
+    },
+    "voice": {
+      "provider": "fal_elevenlabs",
+      "voice_id": "Rachel",
+      "speaking_rate": 1.0
+    },
+    "steps": [
+      {
+        "step_id": "start-top-plane-sketch",
+        "goal": "Start a new sketch on the Top plane.",
+        "preconditions": [
+          "A Part Studio is open and no tool dialog is active."
+        ],
+        "actions": [
+          {
+            "sequence": 1,
+            "ui_region": "left feature tree",
+            "target_label": "Top",
+            "target_description": "The Top origin plane entry in the left feature tree.",
+            "icon_description": "A plane icon beside the label Top.",
+            "semantic_action": "Select the Top plane.",
+            "expected_visible_result": "The Top plane is highlighted in the canvas and feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 2,
+            "ui_region": "top feature toolbar",
+            "target_label": "Sketch",
+            "target_description": "The Sketch button in the top Part Studio toolbar.",
+            "icon_description": "A small sketch/page icon with the visible label Sketch.",
+            "semantic_action": "Create a sketch on the selected Top plane.",
+            "expected_visible_result": "Sketch mode opens looking normal to the Top plane.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          }
+        ],
+        "narration": {
+          "concise": {
+            "text": "Select the Top plane and start a sketch.",
+            "fal_elevenlabs_audio_url": "pending://tts/start-top-plane-sketch/concise",
+            "duration_ms": 0
+          },
+          "detailed": {
+            "text": "I will select the Top plane and open a new sketch on it.",
+            "fal_elevenlabs_audio_url": "pending://tts/start-top-plane-sketch/detailed",
+            "duration_ms": 0
+          }
+        },
+        "voice_cues": [
+          {
+            "cue_id": "top-plane-intro",
+            "phase": "before_step",
+            "action_sequence": 1,
+            "variant": "both",
+            "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+            "start_policy": "play_before_motion",
+            "blocking": true
+          }
+        ],
+        "dynamic_corrections": {
+          "retry": "I will locate the Top plane again.",
+          "target_relocated": "The control moved, so I will relocate it.",
+          "validation_failed": "Sketch mode did not open, so I will pause.",
+          "user_interrupt": "You took control, so I will stop."
+        },
+        "expected_end_state": "A new sketch is active on the Top plane.",
+        "uncertainties": [
+          "Toolbar positions may vary with window width."
+        ]
+      },
+      {
+        "step_id": "draw-centered-circle",
+        "goal": "Draw a circle centered on the sketch origin.",
+        "preconditions": [
+          "A sketch is active on the Top plane and the origin is visible."
+        ],
+        "actions": [
+          {
+            "sequence": 1,
+            "ui_region": "sketch toolbar",
+            "target_label": "Circle",
+            "target_description": "The center-point Circle tool in the sketch toolbar.",
+            "icon_description": "A circle outline icon in the sketch geometry toolbar.",
+            "semantic_action": "Activate the center-point Circle tool.",
+            "expected_visible_result": "The Circle tool is active and awaits a center point.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 2,
+            "ui_region": "center of sketch canvas",
+            "target_label": "Origin",
+            "target_description": "The sketch origin where the red horizontal axis and green vertical axis intersect.",
+            "icon_description": "A small origin point at the crossing of the red and green axes.",
+            "semantic_action": "Place the circle center exactly on the sketch origin.",
+            "expected_visible_result": "A circle preview follows the pointer from the origin.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 3,
+            "ui_region": "sketch canvas immediately right of the origin",
+            "target_label": null,
+            "target_description": "A blank point on the red horizontal sketch axis roughly 100 pixels to the right of the origin, creating a clearly visible circle without touching the canvas edges.",
+            "icon_description": null,
+            "semantic_action": "Set the circle radius.",
+            "expected_visible_result": "A complete circle centered at the origin is visible.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          }
+        ],
+        "narration": {
+          "concise": {
+            "text": "Draw a circle centered on the origin.",
+            "fal_elevenlabs_audio_url": "pending://tts/draw-centered-circle/concise",
+            "duration_ms": 0
+          },
+          "detailed": {
+            "text": "I will choose the circle tool, anchor its center to the origin, and set a visible radius.",
+            "fal_elevenlabs_audio_url": "pending://tts/draw-centered-circle/detailed",
+            "duration_ms": 0
+          }
+        },
+        "voice_cues": [
+          {
+            "cue_id": "circle-intro",
+            "phase": "before_step",
+            "action_sequence": 1,
+            "variant": "both",
+            "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+            "start_policy": "play_before_motion",
+            "blocking": true
+          }
+        ],
+        "dynamic_corrections": {
+          "retry": "I will locate the circle target again.",
+          "target_relocated": "The sketch view moved, so I will relocate the origin.",
+          "validation_failed": "The circle was not created correctly, so I will pause.",
+          "user_interrupt": "You took control, so I will stop."
+        },
+        "expected_end_state": "A circle centered at the sketch origin exists.",
+        "uncertainties": [
+          "The exact visual scale depends on the current viewport."
+        ]
+      },
+      {
+        "step_id": "finish-sketch",
+        "goal": "Finish and accept the circle sketch.",
+        "preconditions": [
+          "The centered circle is visible in the active sketch."
+        ],
+        "actions": [
+          {
+            "sequence": 1,
+            "ui_region": "upper-right corner of the sketch dialog or toolbar",
+            "target_label": "Accept sketch",
+            "target_description": "The green checkmark button that accepts and closes the active sketch.",
+            "icon_description": "A green checkmark.",
+            "semantic_action": "Finish the sketch.",
+            "expected_visible_result": "Sketch mode closes and Sketch 1 appears in the feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          }
+        ],
+        "narration": {
+          "concise": {
+            "text": "Finish the sketch.",
+            "fal_elevenlabs_audio_url": "pending://tts/finish-sketch/concise",
+            "duration_ms": 0
+          },
+          "detailed": {
+            "text": "I will accept the centered circle sketch.",
+            "fal_elevenlabs_audio_url": "pending://tts/finish-sketch/detailed",
+            "duration_ms": 0
+          }
+        },
+        "voice_cues": [
+          {
+            "cue_id": "finish-intro",
+            "phase": "before_step",
+            "action_sequence": 1,
+            "variant": "both",
+            "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+            "start_policy": "play_before_motion",
+            "blocking": true
+          }
+        ],
+        "dynamic_corrections": {
+          "retry": "I will locate the accept button again.",
+          "target_relocated": "The button moved, so I will relocate it.",
+          "validation_failed": "The sketch did not close, so I will pause.",
+          "user_interrupt": "You took control, so I will stop."
+        },
+        "expected_end_state": "Sketch 1 is committed and visible in the feature tree.",
+        "uncertainties": [
+          "The accept control can appear in a floating sketch dialog."
+        ]
+      },
+      {
+        "step_id": "open-revolve",
+        "goal": "Open Revolve using the circle sketch.",
+        "preconditions": [
+          "Sketch 1 contains the centered circle and is committed."
+        ],
+        "actions": [
+          {
+            "sequence": 1,
+            "ui_region": "left feature tree",
+            "target_label": "Sketch 1",
+            "target_description": "Sketch 1 in the left feature tree.",
+            "icon_description": "A sketch glyph beside the label Sketch 1.",
+            "semantic_action": "Select Sketch 1 as the revolve profile.",
+            "expected_visible_result": "Sketch 1 is highlighted.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 2,
+            "ui_region": "top feature toolbar",
+            "target_label": "Revolve",
+            "target_description": "The Revolve feature button in the top toolbar.",
+            "icon_description": "A curved rotational arrow around a profile.",
+            "semantic_action": "Open the Revolve feature dialog.",
+            "expected_visible_result": "The Revolve dialog opens with Sketch 1 as its profile.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          }
+        ],
+        "narration": {
+          "concise": {
+            "text": "Select the sketch and open Revolve.",
+            "fal_elevenlabs_audio_url": "pending://tts/open-revolve/concise",
+            "duration_ms": 0
+          },
+          "detailed": {
+            "text": "I will select Sketch 1 and open the Revolve feature.",
+            "fal_elevenlabs_audio_url": "pending://tts/open-revolve/detailed",
+            "duration_ms": 0
+          }
+        },
+        "voice_cues": [
+          {
+            "cue_id": "revolve-intro",
+            "phase": "before_step",
+            "action_sequence": 1,
+            "variant": "both",
+            "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+            "start_policy": "play_before_motion",
+            "blocking": true
+          }
+        ],
+        "dynamic_corrections": {
+          "retry": "I will locate the Revolve tool again.",
+          "target_relocated": "The toolbar changed, so I will relocate Revolve.",
+          "validation_failed": "The Revolve dialog did not open, so I will pause.",
+          "user_interrupt": "You took control, so I will stop."
+        },
+        "expected_end_state": "The Revolve dialog is open with the circle sketch selected.",
+        "uncertainties": [
+          "Revolve may be inside a toolbar dropdown on narrow windows."
+        ]
+      },
+      {
+        "step_id": "revolve-around-center-axis",
+        "goal": "Revolve the circle around its vertical center axis and accept the feature.",
+        "preconditions": [
+          "The Revolve dialog is open and Sketch 1 is the selected profile."
+        ],
+        "actions": [
+          {
+            "sequence": 1,
+            "ui_region": "Revolve dialog",
+            "target_label": "Revolve axis",
+            "target_description": "The empty Revolve axis selection field in the Revolve dialog.",
+            "icon_description": null,
+            "semantic_action": "Activate axis selection.",
+            "expected_visible_result": "The dialog is waiting for an axis selection.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 2,
+            "ui_region": "center of sketch canvas",
+            "target_label": "Vertical sketch axis",
+            "target_description": "The vertical green sketch center axis passing through the circle center and origin.",
+            "icon_description": "A vertical green construction axis through the origin.",
+            "semantic_action": "Choose the vertical center axis as the revolve axis.",
+            "expected_visible_result": "A full 360-degree revolved preview appears.",
+            "preferred_activation": "vision_only",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          },
+          {
+            "sequence": 3,
+            "ui_region": "Revolve dialog",
+            "target_label": "Accept",
+            "target_description": "The green checkmark button that accepts the Revolve feature.",
+            "icon_description": "A green checkmark at the top of the Revolve dialog.",
+            "semantic_action": "Commit the Revolve feature.",
+            "expected_visible_result": "The Revolve dialog closes and Revolve 1 appears in the feature tree.",
+            "preferred_activation": "dom_js",
+            "fallback_activation": "cdp",
+            "action_type": "click",
+            "parameters": {
+              "button": "primary"
+            }
+          }
+        ],
+        "narration": {
+          "concise": {
+            "text": "Use the vertical center axis and accept the revolve.",
+            "fal_elevenlabs_audio_url": "pending://tts/revolve-around-center-axis/concise",
+            "duration_ms": 0
+          },
+          "detailed": {
+            "text": "I will choose the vertical axis through the circle center, preview a full revolve, and accept it.",
+            "fal_elevenlabs_audio_url": "pending://tts/revolve-around-center-axis/detailed",
+            "duration_ms": 0
+          }
+        },
+        "voice_cues": [
+          {
+            "cue_id": "axis-intro",
+            "phase": "before_step",
+            "action_sequence": 1,
+            "variant": "both",
+            "text_ref": "runtime_select:narration.concise.text|narration.detailed.text",
+            "start_policy": "play_before_motion",
+            "blocking": true
+          }
+        ],
+        "dynamic_corrections": {
+          "retry": "I will locate the center axis again.",
+          "target_relocated": "The view moved, so I will relocate the axis.",
+          "validation_failed": "The revolve preview is not valid, so I will pause.",
+          "user_interrupt": "You took control, so I will stop."
+        },
+        "expected_end_state": "A completed 360-degree Revolve feature exists around the circle's center axis.",
+        "uncertainties": [
+          "The axis color may vary when highlighted."
+        ]
+      }
+    ]
+  }
+}

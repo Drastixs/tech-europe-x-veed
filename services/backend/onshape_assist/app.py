@@ -371,7 +371,42 @@ async def command(command: DemoCommand) -> DemoEnvelope:
         normalized = normalize_command(command)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if (
+        isinstance(normalized, LoadTutorialCommand)
+        and normalized.runtime_session is None
+        and _has_pending_narration(normalized.plan)
+    ):
+        try:
+            enriched = TutorialPlan.model_validate(await narration_enricher(normalized.plan))
+        except NarrationConfigurationError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=error_envelope("narration_configuration_error", str(exc)),
+            ) from exc
+        except NarrationError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=error_envelope("narration_error", str(exc)),
+            ) from exc
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=error_envelope(
+                    "narration_contract_validation_failed",
+                    "Narration enrichment produced an invalid tutorial plan",
+                ),
+            ) from exc
+        normalized = normalized.model_copy(update={"plan": enriched})
     return await relay.publish(normalized)
+
+
+def _has_pending_narration(plan: TutorialPlan) -> bool:
+    return any(
+        variant.fal_elevenlabs_audio_url.startswith("pending://")
+        for step in plan.steps
+        for variant in (step.narration.concise, step.narration.detailed)
+    )
 
 
 @app.post("/analyze", response_model=AnalysisResult)
