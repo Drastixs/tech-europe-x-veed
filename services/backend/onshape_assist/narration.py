@@ -10,6 +10,8 @@ from typing import Any, Literal, TypeVar
 
 import httpx
 
+from .config import load_backend_env
+
 NarrationVariantName = Literal["concise", "detailed"]
 
 
@@ -38,20 +40,23 @@ class NarrationSettings:
 
     @classmethod
     def from_env(cls) -> NarrationSettings:
-        dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+        load_backend_env()
+        try:
+            timeout_seconds = float(os.getenv("FAL_TIMEOUT_SECONDS", "60"))
+        except ValueError as exc:
+            raise NarrationConfigurationError(
+                "FAL_TIMEOUT_SECONDS must be a number"
+            ) from exc
         return cls(
-            api_key=_environment_value("FAL_KEY", dotenv_path),
-            endpoint=_environment_value(
-                "FAL_ELEVENLABS_ENDPOINT", dotenv_path
-            )
-            or "https://fal.run/fal-ai/elevenlabs/tts/eleven-v3",
+            api_key=os.getenv("FAL_KEY"),
+            endpoint=os.getenv(
+                "FAL_ELEVENLABS_ENDPOINT",
+                "https://fal.run/fal-ai/elevenlabs/tts/eleven-v3",
+            ),
             cache_dir=Path(
-                _environment_value("NARRATION_CACHE_DIR", dotenv_path)
-                or ".cache/onshape-assist/narration"
+                os.getenv("NARRATION_CACHE_DIR", ".cache/onshape-assist/narration")
             ),
-            timeout_seconds=float(
-                _environment_value("FAL_TIMEOUT_SECONDS", dotenv_path) or "60"
-            ),
+            timeout_seconds=timeout_seconds,
         )
 
 
@@ -299,29 +304,6 @@ def _provider_duration_ms(payload: dict[str, Any]) -> int:
             if isinstance(values, list):
                 candidates.extend(value for value in values if _is_number(value))
     return max(0, round(max(candidates) * 1000)) if candidates else 0
-
-
-def _environment_value(name: str, dotenv_path: Path) -> str | None:
-    process_value = os.getenv(name)
-    if process_value is not None:
-        return process_value
-    try:
-        lines = dotenv_path.read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:
-        return None
-    except OSError as exc:
-        raise NarrationConfigurationError(f"Could not read backend env file: {dotenv_path}") from exc
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        if key.strip().removeprefix("export ").strip() == name:
-            parsed = value.strip()
-            if len(parsed) >= 2 and parsed[0] == parsed[-1] and parsed[0] in "\"'":
-                parsed = parsed[1:-1]
-            return parsed
-    return None
 
 
 def _deep_copy_plan(plan: PlanT) -> PlanT:

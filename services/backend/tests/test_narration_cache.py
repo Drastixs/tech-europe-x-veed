@@ -6,6 +6,7 @@ from onshape_assist.narration import (
     NarrationAsset,
     NarrationCacheError,
     NarrationCacheKey,
+    NarrationConfigurationError,
     NarrationMetadataCache,
     NarrationSettings,
 )
@@ -70,3 +71,10 @@ def test_settings_are_configurable_from_environment(monkeypatch, tmp_path):
     assert settings.endpoint == "https://fal.example/tts"
     assert settings.cache_dir == tmp_path
     assert settings.timeout_seconds == 12.5
+
+
+def test_invalid_timeout_has_a_typed_configuration_error(monkeypatch):
+    monkeypatch.setenv("FAL_TIMEOUT_SECONDS", "eventually")
+
+    with pytest.raises(NarrationConfigurationError, match="must be a number"):
+        NarrationSettings.from_env()
