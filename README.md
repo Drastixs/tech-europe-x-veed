@@ -60,6 +60,15 @@ uv run --project services/backend overlayctl hide
 
 `click` activates an overlay navigation button only when the virtual cursor is over it. The physical mouse cursor is never moved or hidden. Trusted physical pointer movement or pointer-down hides the virtual guidance; a new command or arrow-key step brings it back.
 
+## Architecture and contracts
+
+The supported runtime is a Chromium MV3 extension connected to local FastAPI
+services. The extension renders guidance and never moves the user's real
+pointer; the backend owns provider credentials and validates committed Onshape
+state. Versioned payloads shared across both are defined in
+[`contracts/runtime-v1.schema.json`](contracts/runtime-v1.schema.json). Its
+canonical Revolve fixture is exercised by both test suites.
+
 ## Video analysis & tutorial extraction
 
 Convert an Onshape tutorial video into a timestamped record of speech and visible
