@@ -116,7 +116,6 @@ export function Overlay() {
           aria-label="Previous step, left arrow"
         >
           ←
-          <kbd>←</kbd>
         </button>
         <span className="oa-step">{state.step}/6</span>
         <button
@@ -127,7 +126,6 @@ export function Overlay() {
           aria-label="Next step, right arrow"
         >
           →
-          <kbd>→</kbd>
         </button>
       </nav>
     </div>

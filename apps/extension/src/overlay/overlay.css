@@ -53,15 +53,17 @@
   top: 0;
   display: grid;
   max-width: min(310px, calc(100vw - 48px));
-  padding: 10px 12px;
+  padding: 11px 14px;
   border: 1px solid oklch(84% 0.08 215 / 24%);
   border-radius: 14px;
   background:
     linear-gradient(135deg, oklch(18% 0.018 238 / 90%), oklch(14% 0.012 238 / 78%)),
     radial-gradient(circle at 16px 12px, oklch(78% 0.145 191 / 22%), transparent 140px);
   box-shadow: 0 18px 50px oklch(8% 0.02 238 / 28%);
-  font-size: 13px;
-  letter-spacing: 0.01em;
+  font-size: 15px;
+  font-weight: 520;
+  line-height: 1.35;
+  letter-spacing: 0.005em;
   transform: translate3d(var(--oa-guide-x), var(--oa-guide-y), 0);
   transition:
     opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -70,16 +72,18 @@
 
 .oa-nav {
   position: absolute;
-  right: 22px;
-  bottom: 20px;
+  right: 18px;
+  bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px;
-  border: 1px solid oklch(84% 0.08 215 / 22%);
-  border-radius: 18px;
-  background: oklch(13% 0.012 238 / 84%);
-  box-shadow: 0 16px 44px oklch(8% 0.02 238 / 26%);
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid oklch(68% 0.19 252 / 24%);
+  border-radius: 14px;
+  background: oklch(13% 0.014 252 / 78%);
+  box-shadow:
+    0 10px 28px oklch(7% 0.015 252 / 28%),
+    0 0 12px oklch(68% 0.19 252 / 10%);
   pointer-events: auto;
 }
 
@@ -87,38 +91,35 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-width: 48px;
-  height: 40px;
-  border: 1px solid oklch(80% 0.04 215 / 18%);
-  border-radius: 12px;
-  background: oklch(22% 0.014 238 / 86%);
-  color: var(--oa-text);
+  min-width: 42px;
+  height: 38px;
+  border: 1px solid oklch(68% 0.19 252 / 32%);
+  border-radius: 10px;
+  background: oklch(15% 0.018 252 / 92%);
+  color: oklch(82% 0.12 252);
   cursor: pointer;
   font: inherit;
-  font-size: 17px;
+  font-size: 23px;
+  font-weight: 560;
+  line-height: 1;
   transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms, background 160ms;
 }
 
 .oa-nav button:hover,
 .oa-nav button:focus-visible,
 .oa-nav button.is-active {
-  border-color: oklch(82% 0.12 191 / 64%);
-  background: var(--oa-accent-soft);
+  border-color: oklch(68% 0.19 252 / 86%);
+  background: oklch(20% 0.045 252 / 94%);
   outline: none;
   transform: translateY(-1px);
-}
-
-.oa-nav kbd {
-  color: var(--oa-muted);
-  font-size: 10px;
-  font-weight: 650;
+  box-shadow: 0 0 8px oklch(68% 0.19 252 / 26%);
 }
 
 .oa-step {
-  min-width: 32px;
-  color: var(--oa-muted);
-  font-size: 11px;
+  min-width: 40px;
+  color: oklch(88% 0.022 252);
+  font-size: 13px;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
