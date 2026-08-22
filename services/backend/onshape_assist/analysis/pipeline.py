@@ -92,6 +92,61 @@ def _fill_video_meta(result: AnalysisResult, request: AnalysisRequest) -> None:
             video.analyzed_end_ms = request.analysis_scope.end_ms
 
 
+def enforce_constraints(result: AnalysisResult, request: AnalysisRequest) -> AnalysisResult:
+    """Deterministically enforce the contract in code rather than trusting the model.
+
+    Inspired by the MarkupLadder guardrail pattern: the prompt *requests* good
+    behaviour, this *guarantees* it. Specifically:
+
+    - drop actions whose timestamp falls outside the requested analysis window,
+    - drop transcript segments that fall entirely outside the window,
+    - sort actions chronologically within each step and re-number ``sequence``,
+    - sort steps chronologically, and drop steps that had actions but lost them
+      all to the window filter (keeps intentionally action-free narration steps),
+    - clamp step start/end to the window.
+
+    Mutates and returns ``result``.
+    """
+    scope = request.analysis_scope
+    lo = scope.start_ms if scope else None
+    hi = scope.end_ms if scope else None
+
+    def in_window(ts: int) -> bool:
+        if lo is None or hi is None:
+            return True
+        return lo <= ts <= hi
+
+    kept_steps = []
+    for step in result.steps:
+        had_actions = len(step.actions) > 0
+        actions = [a for a in step.actions if in_window(a.timestamp_ms)]
+        actions.sort(key=lambda a: a.timestamp_ms)
+        for i, action in enumerate(actions, start=1):
+            action.sequence = i
+        step.actions = actions
+        if lo is not None and hi is not None:
+            step.start_ms = min(max(step.start_ms, lo), hi) if step.start_ms else lo
+            step.end_ms = min(max(step.end_ms, lo), hi) if step.end_ms else hi
+        # Drop steps that used to have actions but lost them all to the filter;
+        # keep steps that were intentionally action-free (pure narration).
+        if had_actions and not actions:
+            continue
+        kept_steps.append(step)
+
+    kept_steps.sort(key=lambda s: s.start_ms)
+    result.steps = kept_steps
+
+    # Clip the transcript segments to the window (drop fully-outside ones).
+    if lo is not None and hi is not None:
+        result.full_transcript.segments = [
+            seg
+            for seg in result.full_transcript.segments
+            if seg.end_ms >= lo and seg.start_ms <= hi
+        ]
+
+    return result
+
+
 async def analyze_video_async(
     request: AnalysisRequest,
     *,
@@ -141,6 +196,7 @@ async def analyze_video_async(
         ) from exc
 
     _fill_video_meta(result, request)
+    enforce_constraints(result, request)
 
     if enrichment_task is not None:
         try:

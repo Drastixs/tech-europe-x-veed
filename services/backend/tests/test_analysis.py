@@ -4,9 +4,11 @@ import pytest
 
 from onshape_assist.analysis import fal, prompts
 from onshape_assist.analysis.models import AnalysisRequest
+from onshape_assist.analysis.models import AnalysisResult
 from onshape_assist.analysis.pipeline import (
     AnalysisError,
     analyze_video,
+    enforce_constraints,
     extract_json,
 )
 
@@ -161,6 +163,67 @@ def test_system_prompt_correlates_audio_and_visual():
     system = prompts.system_prompt(request)
     assert "AUDIO-VISUAL CORRELATION" in system
     assert "cross-reference" in system.lower()
+
+
+def test_guardrail_drops_out_of_range_and_sorts_actions():
+    payload = {
+        "video": {"url": "u", "application": "Onshape"},
+        "full_transcript": {
+            "verbatim_text": "x",
+            "segments": [
+                {"start_ms": 1000, "end_ms": 1500, "text": "in"},
+                {"start_ms": 9000, "end_ms": 9500, "text": "out"},
+            ],
+        },
+        "steps": [
+            {
+                "step_id": "s1",
+                "start_ms": 1000,
+                "end_ms": 2000,
+                "actions": [
+                    {"sequence": 1, "timestamp_ms": 1800, "action_type": "click"},
+                    {"sequence": 2, "timestamp_ms": 1200, "action_type": "click"},
+                    {"sequence": 3, "timestamp_ms": 9000, "action_type": "click"},  # out
+                ],
+            }
+        ],
+    }
+    request = AnalysisRequest(
+        video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000}
+    )
+    result = enforce_constraints(AnalysisResult.model_validate(payload), request)
+
+    actions = result.steps[0].actions
+    assert [a.timestamp_ms for a in actions] == [1200, 1800]  # out-of-range dropped, sorted
+    assert [a.sequence for a in actions] == [1, 2]  # re-sequenced
+    # transcript segment fully outside the window is dropped
+    assert len(result.full_transcript.segments) == 1
+
+
+def test_guardrail_drops_step_that_loses_all_actions_but_keeps_narration_step():
+    payload = {
+        "video": {"url": "u"},
+        "steps": [
+            {  # had actions, all out of range -> dropped
+                "step_id": "dropme",
+                "start_ms": 8000,
+                "end_ms": 9000,
+                "actions": [{"timestamp_ms": 8500, "action_type": "click"}],
+            },
+            {  # intentionally action-free narration step -> kept
+                "step_id": "keepme",
+                "start_ms": 1000,
+                "end_ms": 2000,
+                "actions": [],
+                "narration": "I explain the plan.",
+            },
+        ],
+    }
+    request = AnalysisRequest(
+        video_url="u", analysis_scope={"start_ms": 1000, "end_ms": 2000}
+    )
+    result = enforce_constraints(AnalysisResult.model_validate(payload), request)
+    assert [s.step_id for s in result.steps] == ["keepme"]
 
 
 def test_invalid_json_raises_analysis_error():
