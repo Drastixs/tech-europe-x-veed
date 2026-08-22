@@ -8,7 +8,21 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 Direction = Literal["left", "right"]
-CommandType = Literal["show", "hide", "move", "click", "navigate"]
+CommandType = Literal[
+    "show",
+    "hide",
+    "move",
+    "click",
+    "navigate",
+    "load_tutorial",
+    "arm_takeover",
+    "disarm_takeover",
+]
+
+
+class TutorialStep(BaseModel):
+    step_id: str = Field(min_length=1)
+    text: str = Field(min_length=1)
 
 
 class DemoCommand(BaseModel):
@@ -17,6 +31,8 @@ class DemoCommand(BaseModel):
     y: Annotated[int | None, Field(ge=0)] = None
     duration_ms: Annotated[int | None, Field(ge=0, le=10_000)] = None
     direction: Direction | None = None
+    steps: list[TutorialStep] | None = None
+    step: Annotated[int | None, Field(ge=1)] = None
 
 
 class DemoEnvelope(BaseModel):
@@ -114,4 +130,9 @@ def normalize_command(command: DemoCommand) -> DemoCommand:
         raise ValueError("move requires x and y")
     if command.type == "navigate" and command.direction is None:
         raise ValueError("navigate requires direction")
+    if command.type == "load_tutorial":
+        if not command.steps:
+            raise ValueError("load_tutorial requires at least one step")
+        if command.step is not None and command.step > len(command.steps):
+            raise ValueError("load_tutorial step exceeds the number of steps")
     return command

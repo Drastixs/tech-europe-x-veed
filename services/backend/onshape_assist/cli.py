@@ -39,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     subcommands.add_parser("click")
     subcommands.add_parser("left")
     subcommands.add_parser("right")
+    subcommands.add_parser("arm")
+    subcommands.add_parser("disarm")
 
     move = subcommands.add_parser("move")
     move.add_argument("x", type=int)
@@ -53,6 +55,10 @@ def command_from_args(args: argparse.Namespace) -> dict[str, Any]:
             return {"type": args.command}
         case "left" | "right":
             return {"type": "navigate", "direction": args.command}
+        case "arm":
+            return {"type": "arm_takeover"}
+        case "disarm":
+            return {"type": "disarm_takeover"}
         case "move":
             return {
                 "type": "move",
