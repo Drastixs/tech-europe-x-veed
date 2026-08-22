@@ -19,6 +19,7 @@ export const tutorialPlanFixture: TutorialPlan = {
         {
           sequence: 1,
           action_type: "click",
+          parameters: { button: "primary" },
           ui_region: "feature tree",
           target_label: "Sketch 1",
           target_description: "Sketch 1 in the feature tree.",
@@ -67,6 +68,7 @@ export const tutorialPlanFixture: TutorialPlan = {
         {
           sequence: 1,
           action_type: "click",
+          parameters: { button: "primary" },
           ui_region: "top toolbar",
           target_label: "Revolve",
           target_description: "The Revolve toolbar button.",

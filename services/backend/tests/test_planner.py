@@ -40,6 +40,7 @@ def planned_tutorial() -> dict:
                     {
                         "sequence": 1,
                         "action_type": "click",
+                        "parameters": {"button": "primary"},
                         "ui_region": "toolbar",
                         "target_label": "Revolve",
                         "target_description": "Revolve in the top toolbar.",
@@ -136,6 +137,12 @@ def test_openai_planner_uses_responses_strict_schema_and_server_key():
     assert output_format["type"] == "json_schema"
     assert output_format["strict"] is True
     assert output_format["schema"]["additionalProperties"] is False
+    action_schema = output_format["schema"]["$defs"]["TutorialStep"]["properties"][
+        "actions"
+    ]["items"]
+    assert "anyOf" in action_schema
+    assert "oneOf" not in action_schema
+    assert "discriminator" not in action_schema
     assert "server-secret" not in captured["body"]["input"]
 
 

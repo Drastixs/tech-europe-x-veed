@@ -42,19 +42,8 @@ class Voice(TutorialContractModel):
     speaking_rate: Annotated[float, Field(gt=0)]
 
 
-class TutorialAction(TutorialContractModel):
+class TutorialActionBase(TutorialContractModel):
     sequence: Annotated[int, Field(ge=1)]
-    action_type: Literal[
-        "move",
-        "click",
-        "double_click",
-        "drag",
-        "keypress",
-        "type",
-        "scroll",
-        "wait",
-        "selection",
-    ]
     ui_region: str = Field(min_length=1)
     target_label: str | None
     target_description: str = Field(min_length=1)
@@ -62,6 +51,123 @@ class TutorialAction(TutorialContractModel):
     expected_visible_result: str = Field(min_length=1)
     preferred_activation: Literal["dom_js", "cdp", "vision_only"]
     fallback_activation: Literal["cdp"] | None
+
+
+class MoveParameters(TutorialContractModel):
+    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
+
+
+class PointerParameters(TutorialContractModel):
+    button: Literal["primary", "secondary", "middle"]
+
+
+class DoubleClickParameters(PointerParameters):
+    interval_ms: Annotated[int, Field(ge=0, le=1_000)]
+
+
+class DragParameters(TutorialContractModel):
+    end_target_label: str | None
+    end_target_description: str = Field(min_length=1)
+    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
+
+
+class KeypressParameters(TutorialContractModel):
+    key: str = Field(min_length=1)
+    modifiers: list[Literal["alt", "control", "meta", "shift"]]
+    repeat: Annotated[int, Field(ge=1, le=100)]
+
+
+class TypeParameters(TutorialContractModel):
+    text: str = Field(min_length=1)
+    clear_existing: bool
+    submit: bool
+
+
+class ScrollParameters(TutorialContractModel):
+    delta_x: int
+    delta_y: int
+    duration_ms: Annotated[int, Field(ge=0, le=10_000)]
+
+    @model_validator(mode="after")
+    def validate_nonzero_delta(self) -> ScrollParameters:
+        if self.delta_x == 0 and self.delta_y == 0:
+            raise ValueError("scroll parameters require a non-zero delta")
+        return self
+
+
+class WaitParameters(TutorialContractModel):
+    duration_ms: Annotated[int, Field(ge=0, le=60_000)] | None
+    condition: str | None
+
+    @model_validator(mode="after")
+    def validate_duration_or_condition(self) -> WaitParameters:
+        if self.duration_ms is None and not self.condition:
+            raise ValueError("wait parameters require duration_ms or condition")
+        return self
+
+
+class SelectionParameters(TutorialContractModel):
+    items: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+    mode: Literal["replace", "add", "toggle"]
+    confirm: bool
+
+
+class MoveAction(TutorialActionBase):
+    action_type: Literal["move"]
+    parameters: MoveParameters
+
+
+class ClickAction(TutorialActionBase):
+    action_type: Literal["click"]
+    parameters: PointerParameters
+
+
+class DoubleClickAction(TutorialActionBase):
+    action_type: Literal["double_click"]
+    parameters: DoubleClickParameters
+
+
+class DragAction(TutorialActionBase):
+    action_type: Literal["drag"]
+    parameters: DragParameters
+
+
+class KeypressAction(TutorialActionBase):
+    action_type: Literal["keypress"]
+    parameters: KeypressParameters
+
+
+class TypeAction(TutorialActionBase):
+    action_type: Literal["type"]
+    parameters: TypeParameters
+
+
+class ScrollAction(TutorialActionBase):
+    action_type: Literal["scroll"]
+    parameters: ScrollParameters
+
+
+class WaitAction(TutorialActionBase):
+    action_type: Literal["wait"]
+    parameters: WaitParameters
+
+
+class SelectionAction(TutorialActionBase):
+    action_type: Literal["selection"]
+    parameters: SelectionParameters
+
+
+TutorialAction = (
+    MoveAction
+    | ClickAction
+    | DoubleClickAction
+    | DragAction
+    | KeypressAction
+    | TypeAction
+    | ScrollAction
+    | WaitAction
+    | SelectionAction
+)
 
 
 class NarrationVariant(TutorialContractModel):

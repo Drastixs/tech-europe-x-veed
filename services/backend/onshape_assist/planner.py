@@ -23,6 +23,11 @@ ACTIVATION
 - Prefer dom_js for stable DOM or accessibility targets, with cdp as fallback.
 - Prefer cdp for canvas, WebGL, drag, keyboard, inaccessible, or unstable targets.
 - Use vision_only only when the evidence supports observation without activation.
+- Populate the action-specific parameters exactly: motion duration for move; pointer button for
+  click; button and interval for double-click; destination and duration for drag; key, modifiers,
+  and repeat for keypress; text, replacement, and submission intent for type; pixel deltas and
+  duration for scroll; duration or visible condition for wait; and items, mode, and confirmation
+  intent for selection.
 - Activation fields guide another system; never mention them in spoken narration.
 
 VOICE

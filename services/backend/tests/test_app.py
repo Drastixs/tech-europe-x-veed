@@ -25,6 +25,7 @@ def tutorial_plan() -> dict:
                     {
                         "sequence": 1,
                         "action_type": "click",
+                        "parameters": {"button": "primary"},
                         "ui_region": "feature tree",
                         "target_label": "Sketch 1",
                         "target_description": "Sketch 1 in the feature tree.",
@@ -67,6 +68,17 @@ def tutorial_plan() -> dict:
             }
         ],
     }
+
+
+def plan_with_action(action_type: str, parameters: dict | None = None) -> dict:
+    plan = tutorial_plan()
+    action = plan["steps"][0]["actions"][0]
+    action["action_type"] = action_type
+    if parameters is None:
+        action.pop("parameters", None)
+    else:
+        action["parameters"] = parameters
+    return plan
 
 
 def test_health_reports_ok():
@@ -159,6 +171,78 @@ def test_invalid_nested_tutorial_data_is_rejected():
     plan = tutorial_plan()
     plan["steps"][0]["actions"][0]["action_type"] = "teleport"
     response = client.post("/commands", json={"type": "load_tutorial", "plan": plan})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("action_type", "parameters"),
+    [
+        ("move", {"duration_ms": 420}),
+        ("click", {"button": "primary"}),
+        ("double_click", {"button": "primary", "interval_ms": 120}),
+        (
+            "drag",
+            {
+                "end_target_label": "Axis",
+                "end_target_description": "The vertical construction line.",
+                "duration_ms": 700,
+            },
+        ),
+        ("keypress", {"key": "Enter", "modifiers": ["control"], "repeat": 1}),
+        ("type", {"text": "25 mm", "clear_existing": True, "submit": True}),
+        ("scroll", {"delta_x": 0, "delta_y": 640, "duration_ms": 300}),
+        ("wait", {"duration_ms": None, "condition": "The dialog is visible."}),
+        (
+            "selection",
+            {"items": ["Sketch 1", "Axis"], "mode": "replace", "confirm": False},
+        ),
+    ],
+)
+def test_action_specific_parameters_are_accepted(action_type: str, parameters: dict):
+    client = TestClient(app)
+
+    response = client.post(
+        "/commands",
+        json={"type": "load_tutorial", "plan": plan_with_action(action_type, parameters)},
+    )
+
+    assert response.status_code == 200
+    action = response.json()["command"]["plan"]["steps"][0]["actions"][0]
+    assert action["action_type"] == action_type
+    assert action["parameters"] == parameters
+
+
+@pytest.mark.parametrize(
+    ("action_type", "parameters"),
+    [
+        ("type", {"button": "primary"}),
+        ("scroll", {"delta_x": 0, "delta_y": 0, "duration_ms": 300}),
+        ("wait", {"duration_ms": None, "condition": None}),
+        ("selection", {"items": [], "mode": "replace", "confirm": False}),
+        ("click", {"button": "primary", "text": "unexpected"}),
+    ],
+)
+def test_invalid_action_specific_parameters_are_rejected(
+    action_type: str, parameters: dict
+):
+    client = TestClient(app)
+
+    response = client.post(
+        "/commands",
+        json={"type": "load_tutorial", "plan": plan_with_action(action_type, parameters)},
+    )
+
+    assert response.status_code == 422
+
+
+def test_action_parameters_are_required():
+    client = TestClient(app)
+
+    response = client.post(
+        "/commands",
+        json={"type": "load_tutorial", "plan": plan_with_action("click")},
+    )
 
     assert response.status_code == 422
 
