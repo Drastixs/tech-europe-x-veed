@@ -1,0 +1,927 @@
+{
+  "video": {
+    "url": "https://youtu.be/X21fkHiF1cY",
+    "application": "Onshape",
+    "analyzed_start_ms": 46000,
+    "analyzed_end_ms": 166000,
+    "source_width": 1920,
+    "source_height": 1080
+  },
+  "full_transcript": {
+    "verbatim_text": "So log into your Onshape and open a new document and first we're going to start a sketch on the top plane. And click OK. So what I'd like to do first is I get an idea of what the profile looks like. So it's got this little U-shape, uh, it's got a thin wall, and it's got a little sort of clip hook kind of thing there. And what I'll do is I'll just sort of draw that out using lines. So there's a few ways you can do it. I think what I'll do is I will draw the outline, then offset it into the middle, and then add the little tooth. So always think about what you're going to do before you start drawing. So, line, line, line, line, line, line, escape. Also do remember to change your units before you start drawing. I'm working in millimeters, uh, and you can also work in inches if you prefer. Alright, so now I think it's about time to just start adding some basic dimensions in. So I'm going to work out how wide the part is. So we've got 12.5... Okay. So we got, let's say 12.6. 12.6. And overall height of... I'd say 19 millimeters. 19. And then the little lip bit that will... if I can measure it... 8.85.",
+    "segments": [
+      {
+        "start_ms": 46000,
+        "end_ms": 54000,
+        "speaker": "instructor",
+        "text": "So log into your Onshape and open a new document and first we're going to start a sketch on the top plane. And click OK.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 55000,
+        "end_ms": 84000,
+        "speaker": "instructor",
+        "text": "So what I'd like to do first is I get an idea of what the profile looks like. So it's got this little U-shape, uh, it's got a thin wall, and it's got a little sort of clip hook kind of thing there. And what I'll do is I'll just sort of draw that out using lines. So there's a few ways you can do it. I think what I'll do is I will draw the outline, then offset it into the middle, and then add the little tooth. So always think about what you're going to do before you start drawing.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 84000,
+        "end_ms": 98000,
+        "speaker": "instructor",
+        "text": "So, line, line, line, line, line, line, escape.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 98000,
+        "end_ms": 106000,
+        "speaker": "instructor",
+        "text": "Also do remember to change your units before you start drawing. I'm working in millimeters, uh, and you can also work in inches if you prefer.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 106000,
+        "end_ms": 128000,
+        "speaker": "instructor",
+        "text": "Alright, so now I think it's about time to just start adding some basic dimensions in. So I'm going to work out how wide the part is. So we've got 12.5... Okay. So we got, let's say 12.6. 12.6.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 128000,
+        "end_ms": 145000,
+        "speaker": "instructor",
+        "text": "And overall height of... I'd say 19 millimeters. 19.",
+        "confidence": 0.95
+      },
+      {
+        "start_ms": 145000,
+        "end_ms": 166000,
+        "speaker": "instructor",
+        "text": "And then the little lip bit that will... if I can measure it... 8.85.",
+        "confidence": 0.95
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "step_1",
+      "start_ms": 46000,
+      "end_ms": 54000,
+      "user_text": "Start a sketch on the top plane.",
+      "goal": "Create new sketch.",
+      "actions": [
+        {
+          "sequence": 1,
+          "timestamp_ms": 46000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 500.0,
+            "y": 500.0
+          },
+          "cursor_end": {
+            "x": 500.0,
+            "y": 500.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait for speech.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 2,
+          "timestamp_ms": 49000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 500.0,
+            "y": 500.0
+          },
+          "cursor_end": {
+            "x": 150.0,
+            "y": 60.0
+          },
+          "position_source": "inferred",
+          "ui_region": "toolbar",
+          "target_label": "Sketch",
+          "target_description": "Sketch tool icon.",
+          "icon_description": "Pencil icon.",
+          "selected_object": "Sketch tool",
+          "visible_result": "Sketch dialog opens.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 3,
+          "timestamp_ms": 51000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 150.0,
+            "y": 60.0
+          },
+          "cursor_end": {
+            "x": 450.0,
+            "y": 550.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": "Top",
+          "target_description": "Top plane in viewport.",
+          "icon_description": null,
+          "selected_object": "Top plane",
+          "visible_result": "Plane selected for sketch.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 4,
+          "timestamp_ms": 52000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 450.0,
+            "y": 550.0
+          },
+          "cursor_end": {
+            "x": 280.0,
+            "y": 120.0
+          },
+          "position_source": "inferred",
+          "ui_region": "dialog",
+          "target_label": "OK",
+          "target_description": "Green checkmark.",
+          "icon_description": "Checkmark.",
+          "selected_object": null,
+          "visible_result": "Sketch confirmed.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 5,
+          "timestamp_ms": 53000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 280.0,
+            "y": 120.0
+          },
+          "cursor_end": {
+            "x": 950.0,
+            "y": 100.0
+          },
+          "position_source": "inferred",
+          "ui_region": "view_cube",
+          "target_label": "Top",
+          "target_description": "Top face of view cube.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Camera orients to Top.",
+          "confidence": 0.9
+        }
+      ],
+      "narration": "I create a sketch on the Top plane and orient the view.",
+      "expected_end_state": "Sketch active, Top view.",
+      "uncertainties": []
+    },
+    {
+      "step_id": "step_2",
+      "start_ms": 55000,
+      "end_ms": 84000,
+      "user_text": "Explain profile.",
+      "goal": "Explain strategy.",
+      "actions": [
+        {
+          "sequence": 1,
+          "timestamp_ms": 55000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 950.0,
+            "y": 100.0
+          },
+          "cursor_end": {
+            "x": 950.0,
+            "y": 100.0
+          },
+          "position_source": "inferred",
+          "ui_region": "video",
+          "target_label": null,
+          "target_description": "Camera view.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No CAD changes.",
+          "confidence": 0.9
+        }
+      ],
+      "narration": "I explain the U-shape profile.",
+      "expected_end_state": "No CAD changes.",
+      "uncertainties": []
+    },
+    {
+      "step_id": "step_3",
+      "start_ms": 85000,
+      "end_ms": 94000,
+      "user_text": "Draw outline.",
+      "goal": "Draw U-shape.",
+      "actions": [
+        {
+          "sequence": 1,
+          "timestamp_ms": 85000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 950.0,
+            "y": 100.0
+          },
+          "cursor_end": {
+            "x": 180.0,
+            "y": 60.0
+          },
+          "position_source": "inferred",
+          "ui_region": "toolbar",
+          "target_label": "Line",
+          "target_description": "Line tool.",
+          "icon_description": "Line.",
+          "selected_object": "Line tool",
+          "visible_result": "Line tool active.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 2,
+          "timestamp_ms": 86000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 180.0,
+            "y": 60.0
+          },
+          "cursor_end": {
+            "x": 500.0,
+            "y": 500.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": "Origin",
+          "target_description": "Sketch origin.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Line starts.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 3,
+          "timestamp_ms": 87000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 500.0,
+            "y": 500.0
+          },
+          "cursor_end": {
+            "x": 500.0,
+            "y": 300.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Point above origin.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Vertical line drawn.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 4,
+          "timestamp_ms": 89000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 500.0,
+            "y": 300.0
+          },
+          "cursor_end": {
+            "x": 550.0,
+            "y": 300.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Point to the right.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Horizontal line drawn.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 5,
+          "timestamp_ms": 90000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 550.0,
+            "y": 300.0
+          },
+          "cursor_end": {
+            "x": 550.0,
+            "y": 450.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Point below.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Vertical line drawn.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 6,
+          "timestamp_ms": 92000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 550.0,
+            "y": 450.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 450.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Point to the right.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Horizontal line drawn.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 7,
+          "timestamp_ms": 93000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 450.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Point above.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Vertical line drawn.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 8,
+          "timestamp_ms": 94000,
+          "action_type": "keypress",
+          "mouse_button": null,
+          "keys": [
+            "Escape"
+          ],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Viewport.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Line tool exits.",
+          "confidence": 0.9
+        }
+      ],
+      "narration": "I draw a basic U-shape.",
+      "expected_end_state": "U-shape drawn.",
+      "uncertainties": []
+    },
+    {
+      "step_id": "step_4",
+      "start_ms": 98000,
+      "end_ms": 106000,
+      "user_text": "Check units.",
+      "goal": "Note on units.",
+      "actions": [
+        {
+          "sequence": 1,
+          "timestamp_ms": 98000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait for speech.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        }
+      ],
+      "narration": "I remind viewers about units.",
+      "expected_end_state": "No CAD changes.",
+      "uncertainties": []
+    },
+    {
+      "step_id": "step_5",
+      "start_ms": 106000,
+      "end_ms": 166000,
+      "user_text": "Add dimensions.",
+      "goal": "Dimension sketch.",
+      "actions": [
+        {
+          "sequence": 1,
+          "timestamp_ms": 106000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 2,
+          "timestamp_ms": 117000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 350.0
+          },
+          "cursor_end": {
+            "x": 450.0,
+            "y": 60.0
+          },
+          "position_source": "inferred",
+          "ui_region": "toolbar",
+          "target_label": "Dimension",
+          "target_description": "Dimension tool.",
+          "icon_description": "Dimension.",
+          "selected_object": "Dimension tool",
+          "visible_result": "Tool active.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 3,
+          "timestamp_ms": 118000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 450.0,
+            "y": 60.0
+          },
+          "cursor_end": {
+            "x": 575.0,
+            "y": 500.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Bottom line.",
+          "icon_description": null,
+          "selected_object": "Line",
+          "visible_result": "Line selected.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 4,
+          "timestamp_ms": 120000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 575.0,
+            "y": 500.0
+          },
+          "cursor_end": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Empty space.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension placed.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 5,
+          "timestamp_ms": 120000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "cursor_end": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 6,
+          "timestamp_ms": 128000,
+          "action_type": "type",
+          "mouse_button": null,
+          "keys": [
+            "Enter"
+          ],
+          "typed_text": "12.6",
+          "cursor_start": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "cursor_end": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "position_source": "inferred",
+          "ui_region": "dialog",
+          "target_label": null,
+          "target_description": "Input field.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension updated.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 7,
+          "timestamp_ms": 128000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "cursor_end": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 8,
+          "timestamp_ms": 140000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 575.0,
+            "y": 550.0
+          },
+          "cursor_end": {
+            "x": 500.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Left line.",
+          "icon_description": null,
+          "selected_object": "Line",
+          "visible_result": "Line selected.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 9,
+          "timestamp_ms": 141000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 500.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Empty space.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension placed.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 10,
+          "timestamp_ms": 141000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 11,
+          "timestamp_ms": 145000,
+          "action_type": "type",
+          "mouse_button": null,
+          "keys": [
+            "Enter"
+          ],
+          "typed_text": "19",
+          "cursor_start": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "dialog",
+          "target_label": null,
+          "target_description": "Input field.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension updated.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 12,
+          "timestamp_ms": 146000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 400.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 550.0,
+            "y": 375.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Inner line.",
+          "icon_description": null,
+          "selected_object": "Line",
+          "visible_result": "Line selected.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 13,
+          "timestamp_ms": 147000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 550.0,
+            "y": 375.0
+          },
+          "cursor_end": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Empty space.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension placed.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 14,
+          "timestamp_ms": 148000,
+          "action_type": "type",
+          "mouse_button": null,
+          "keys": [
+            "Enter"
+          ],
+          "typed_text": "2.6",
+          "cursor_start": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "cursor_end": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "position_source": "inferred",
+          "ui_region": "dialog",
+          "target_label": null,
+          "target_description": "Input field.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension updated.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 15,
+          "timestamp_ms": 148000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "cursor_end": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 16,
+          "timestamp_ms": 161000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 600.0,
+            "y": 375.0
+          },
+          "cursor_end": {
+            "x": 650.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Outer line.",
+          "icon_description": null,
+          "selected_object": "Line",
+          "visible_result": "Line selected.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 17,
+          "timestamp_ms": 164000,
+          "action_type": "click",
+          "mouse_button": "left",
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 650.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 700.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Empty space.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "Dimension placed.",
+          "confidence": 0.9
+        },
+        {
+          "sequence": 18,
+          "timestamp_ms": 164000,
+          "action_type": "wait",
+          "mouse_button": null,
+          "keys": [],
+          "typed_text": null,
+          "cursor_start": {
+            "x": 700.0,
+            "y": 400.0
+          },
+          "cursor_end": {
+            "x": 700.0,
+            "y": 400.0
+          },
+          "position_source": "inferred",
+          "ui_region": "viewport",
+          "target_label": null,
+          "target_description": "Wait.",
+          "icon_description": null,
+          "selected_object": null,
+          "visible_result": "No change.",
+          "confidence": 0.9
+        }
+      ],
+      "narration": "I dimension the width, height, and inner wall.",
+      "expected_end_state": "Dimensions applied.",
+      "uncertainties": []
+    }
+  ],
+  "scene_review": null
+}
