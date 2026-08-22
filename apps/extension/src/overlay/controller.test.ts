@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   currentTutorialText,
+  currentNarration,
   hitTestNavigation,
   initialOverlayState,
   reduceOverlayState
@@ -63,6 +64,21 @@ describe("overlay controller", () => {
       plan: detailedPlan
     });
     expect(currentTutorialText(detailedState)).toContain("feature tree");
+    expect(currentNarration(detailedState)?.fal_elevenlabs_audio_url).toContain("/detailed");
+  });
+
+  it("lets the user override the plan narration preference", () => {
+    const loaded = reduceOverlayState(initialOverlayState, {
+      type: "load_tutorial",
+      plan: tutorialPlanFixture
+    });
+    const detailed = reduceOverlayState(loaded, {
+      type: "set_narration_mode",
+      mode: "detailed"
+    });
+
+    expect(detailed.narrationMode).toBe("detailed");
+    expect(currentTutorialText(detailed)).toContain("feature tree");
   });
 
   it("arms takeover explicitly and disarms after takeover", () => {
