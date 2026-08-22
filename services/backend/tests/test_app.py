@@ -1,3 +1,4 @@
+import asyncio
 import threading
 from typing import Any
 
@@ -376,3 +377,136 @@ def test_computer_use_endpoint_round_trips_extension_events(monkeypatch):
     assert responses[0].status_code == 200
     assert responses[0].json()["success"] is True
     assert responses[0].json()["viewport_target"] == {"x": 720, "y": 225}
+
+
+def test_computer_use_step_endpoint_captures_before_every_action(monkeypatch):
+    class FakeHolo:
+        async def localize(self, screenshot_data_url, context):
+            assert screenshot_data_url.startswith("data:image/png;base64,screen-")
+            return LocalizedPoint(x=250, y=500)
+
+    monkeypatch.setattr(app_module, "holo_factory", FakeHolo)
+    relay.last_envelope = None
+    responses = []
+    step = tutorial_plan()["steps"][0]
+    step["actions"].append(
+        {
+            **step["actions"][0],
+            "sequence": 2,
+            "target_label": "Revolve",
+            "target_description": "Revolve in the top toolbar.",
+            "semantic_action": "Open Revolve.",
+            "expected_visible_result": "The Revolve dialog opens.",
+        }
+    )
+    capture_request_ids = []
+
+    with TestClient(app) as client, client.websocket_connect(
+        "/ws/extension", headers={"origin": "https://cad.onshape.com"}
+    ) as websocket:
+        worker = threading.Thread(
+            target=lambda: responses.append(
+                client.post(
+                    "/computer-use/demonstrate-step",
+                    json={"step": step, "execute": True},
+                )
+            )
+        )
+        worker.start()
+
+        for index, expected_sequence in enumerate((1, 2), start=1):
+            capture = websocket.receive_json()
+            assert capture["command"]["type"] == "capture_observation"
+            request_id = capture["command"]["request_id"]
+            capture_request_ids.append(request_id)
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "extension.event",
+                    "tab_id": 7,
+                    "event": {
+                        "type": "observation.captured",
+                        "request_id": request_id,
+                        "screenshot_data_url": f"data:image/png;base64,screen-{index}",
+                        "viewport": {
+                            "width": 1440,
+                            "height": 900,
+                            "device_pixel_ratio": 1,
+                        },
+                        "url": "https://cad.onshape.com/documents/demo/w/one/e/two",
+                    },
+                }
+            )
+
+            move = websocket.receive_json()
+            assert move["command"]["type"] == "move"
+            execute = websocket.receive_json()
+            assert execute["command"]["type"] == "execute_action"
+            assert execute["command"]["action"]["sequence"] == expected_sequence
+            action_id = execute["command"]["action_id"]
+            websocket.send_json(
+                {
+                    "version": 1,
+                    "type": "extension.event",
+                    "tab_id": 7,
+                    "event": {
+                        "type": "action.completed",
+                        "action_id": action_id,
+                        "success": True,
+                        "reason": None,
+                        "element_description": execute["command"]["action"]["target_label"],
+                    },
+                }
+            )
+
+        worker.join(timeout=3)
+
+    assert not worker.is_alive()
+    assert len(set(capture_request_ids)) == 2
+    assert responses[0].status_code == 200
+    body = responses[0].json()
+    assert body["step_id"] == "open-revolve"
+    assert body["success"] is True
+    assert body["completed_actions"] == 2
+    assert [result["success"] for result in body["results"]] == [True, True]
+
+
+def test_computer_use_requests_are_serialized(monkeypatch):
+    events = []
+
+    class FakeRunner:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def demonstrate(self, action, *, step_goal, execute):
+            call_number = len([event for event in events if event.startswith("start")]) + 1
+            events.append(f"start-{call_number}")
+            if call_number == 1:
+                first_started.set()
+                await release_first.wait()
+            events.append(f"end-{call_number}")
+            return object()
+
+    monkeypatch.setattr(app_module, "DemoRunner", FakeRunner)
+    monkeypatch.setattr(app_module, "holo_factory", object)
+
+    async def run_requests():
+        nonlocal first_started, release_first
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        request = app_module.ComputerUseDemonstrationRequest(
+            action=tutorial_plan()["steps"][0]["actions"][0]
+        )
+        first = asyncio.create_task(app_module.demonstrate_computer_action(request))
+        await first_started.wait()
+        second = asyncio.create_task(app_module.demonstrate_computer_action(request))
+        await asyncio.sleep(0)
+        assert events == ["start-1"]
+        release_first.set()
+        await asyncio.gather(first, second)
+
+    first_started = None
+    release_first = None
+    asyncio.run(run_requests())
+
+    assert events == ["start-1", "end-1", "start-2", "end-2"]

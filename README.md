@@ -40,9 +40,21 @@ uv run --project services/backend overlayctl hide
 
 `click` activates an overlay navigation button only when the virtual cursor is over it. The physical mouse cursor is never moved or hidden. Trusted physical pointer movement or pointer-down hides the virtual guidance; a new command or arrow-key step brings it back.
 
-## Test one real computer-use action
+## Test computer-use execution
 
-With the extension connected to an active Onshape document, post one typed action:
+To execute every action in a tutorial step, post the complete `TutorialStep` object from a
+generated plan. The backend runs its actions in sequence, capturing and grounding against a fresh
+screenshot before each action. It stops on the first failed action and returns the attempted action
+results:
+
+```bash
+jq '{step: .steps[0], execute: true}' tutorial-plan.json | \
+  curl -X POST http://127.0.0.1:8000/computer-use/demonstrate-step \
+    -H 'Content-Type: application/json' --data-binary @-
+```
+
+The single-action endpoint remains available for testing. With the extension connected to an
+active Onshape document, post one typed action:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/computer-use/demonstrate \

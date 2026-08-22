@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from .computer_use import (
     DemoRunner,
     ExtensionEventBroker,
     PixelPoint,
+    StepDemonstrationResult,
 )
 from .holo import (
     HoloClient,
@@ -342,6 +344,11 @@ class ComputerUseDemonstrationRequest(BaseModel):
     execute: bool = True
 
 
+class ComputerUseStepDemonstrationRequest(BaseModel):
+    step: TutorialStep
+    execute: bool = True
+
+
 class HoloLocalizationRequest(BaseModel):
     screenshot_data_url: str = Field(min_length=1)
     target_description: str = Field(min_length=1)
@@ -401,6 +408,7 @@ class Relay:
 
 relay = Relay()
 extension_events = ExtensionEventBroker()
+computer_use_lock = asyncio.Lock()
 
 PlannerFactory = Callable[[], OpenAIPlanner]
 NarrationEnricher = Callable[[TutorialPlan], Awaitable[TutorialPlan]]
@@ -481,9 +489,30 @@ async def demonstrate_computer_action(
         request_extension=request_extension_event,
     )
     try:
-        return await runner.demonstrate(
-            request.action, step_goal=request.step_goal, execute=request.execute
-        )
+        async with computer_use_lock:
+            return await runner.demonstrate(
+                request.action, step_goal=request.step_goal, execute=request.execute
+            )
+    except HoloConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except HoloError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (ComputerUseError, ValidationError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/computer-use/demonstrate-step", response_model=StepDemonstrationResult)
+async def demonstrate_computer_step(
+    request: ComputerUseStepDemonstrationRequest,
+) -> StepDemonstrationResult:
+    runner = DemoRunner(
+        holo=holo_factory(),
+        publish_command=publish_computer_use_command,
+        request_extension=request_extension_event,
+    )
+    try:
+        async with computer_use_lock:
+            return await runner.demonstrate_step(request.step, execute=request.execute)
     except HoloConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except HoloError as exc:

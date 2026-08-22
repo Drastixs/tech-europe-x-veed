@@ -5,9 +5,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .holo import HoloClient, LocalizationContext
+from .holo import HoloClient, HoloError, LocalizationContext
 
 
 class ComputerUseError(Exception):
@@ -41,7 +41,19 @@ class DemonstrationResult(BaseModel):
     element_description: str | None
 
 
+class StepDemonstrationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step_id: str
+    results: list[DemonstrationResult]
+    completed_actions: int
+    success: bool
+    reason: str | None
+    failed_action_sequence: int | None
+
+
 class ActionContext(Protocol):
+    sequence: int
     action_type: str
     target_label: str | None
     target_description: str
@@ -50,6 +62,12 @@ class ActionContext(Protocol):
     parameters: Any
 
     def model_dump(self) -> dict[str, Any]: ...
+
+
+class StepContext(Protocol):
+    step_id: str
+    goal: str
+    actions: list[ActionContext]
 
 
 PublishCommand = Callable[[dict[str, Any]], Awaitable[None]]
@@ -109,6 +127,41 @@ class DemoRunner:
         self.publish_command = publish_command
         self.request_extension = request_extension
         self.timeout_seconds = timeout_seconds
+
+    async def demonstrate_step(
+        self, step: StepContext, *, execute: bool
+    ) -> StepDemonstrationResult:
+        results: list[DemonstrationResult] = []
+        for action in step.actions:
+            try:
+                result = await self.demonstrate(action, step_goal=step.goal, execute=execute)
+            except (ComputerUseError, HoloError, ValidationError) as exc:
+                if not results:
+                    raise
+                return StepDemonstrationResult(
+                    step_id=step.step_id,
+                    results=results,
+                    completed_actions=sum(
+                        result.executed and result.success for result in results
+                    ),
+                    success=False,
+                    reason=str(exc),
+                    failed_action_sequence=action.sequence,
+                )
+            results.append(result)
+            if not result.success:
+                break
+
+        failed = next((result for result in results if not result.success), None)
+        failed_action_sequence = step.actions[len(results) - 1].sequence if failed else None
+        return StepDemonstrationResult(
+            step_id=step.step_id,
+            results=results,
+            completed_actions=sum(result.executed and result.success for result in results),
+            success=failed is None,
+            reason=failed.reason if failed else None,
+            failed_action_sequence=failed_action_sequence,
+        )
 
     async def demonstrate(
         self, action: ActionContext, *, step_goal: str | None, execute: bool
