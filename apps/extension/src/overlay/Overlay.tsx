@@ -95,8 +95,9 @@ export function Overlay() {
         style={cursorStyle}
         aria-hidden="true"
       >
-        <span className="oa-cursor-core" />
-        <span className="oa-cursor-ring" />
+        <svg viewBox="0 0 28 36" focusable="false">
+          <path d="M2.5 1.8 24.2 20l-9.2 1.5 5.1 10.7-6.1 2.9-5-10.7-6.5 6.7Z" />
+        </svg>
       </div>
 
       <div
