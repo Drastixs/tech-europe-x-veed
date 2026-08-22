@@ -20,9 +20,97 @@ CommandType = Literal[
 ]
 
 
+class RuntimePreferences(BaseModel):
+    detailed_narration: bool
+
+
+class Voice(BaseModel):
+    provider: Literal["fal_elevenlabs"]
+    voice_id: str = Field(min_length=1)
+    speaking_rate: Annotated[float, Field(gt=0)]
+
+
+class TutorialAction(BaseModel):
+    sequence: Annotated[int, Field(ge=1)]
+    action_type: Literal[
+        "move",
+        "click",
+        "double_click",
+        "drag",
+        "keypress",
+        "type",
+        "scroll",
+        "wait",
+        "selection",
+    ]
+    ui_region: str = Field(min_length=1)
+    target_label: str | None
+    target_description: str = Field(min_length=1)
+    semantic_action: str = Field(min_length=1)
+    expected_visible_result: str = Field(min_length=1)
+    preferred_activation: Literal["dom_js", "cdp", "vision_only"]
+    fallback_activation: Literal["cdp"] | None
+
+
+class NarrationVariant(BaseModel):
+    text: str = Field(min_length=1)
+    fal_elevenlabs_audio_url: str = Field(min_length=1)
+    duration_ms: Annotated[int, Field(ge=0)]
+
+
+class Narration(BaseModel):
+    concise: NarrationVariant
+    detailed: NarrationVariant
+
+
+class VoiceCue(BaseModel):
+    cue_id: str = Field(min_length=1)
+    phase: Literal[
+        "before_step",
+        "before_action",
+        "during_action",
+        "after_action",
+        "after_step",
+        "on_retry",
+        "on_user_interrupt",
+    ]
+    action_sequence: Annotated[int, Field(ge=1)]
+    variant: Literal["concise", "detailed", "both"]
+    text_ref: str = Field(min_length=1)
+    start_policy: Literal[
+        "play_before_motion",
+        "play_with_motion",
+        "play_after_validation",
+        "play_on_event",
+    ]
+    blocking: bool
+
+
+class DynamicCorrections(BaseModel):
+    retry: str = Field(min_length=1)
+    validation_failed: str = Field(min_length=1)
+    user_interrupt: str = Field(min_length=1)
+
+
 class TutorialStep(BaseModel):
     step_id: str = Field(min_length=1)
-    text: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    preconditions: list[str]
+    actions: Annotated[list[TutorialAction], Field(min_length=1)]
+    narration: Narration
+    voice_cues: list[VoiceCue]
+    dynamic_corrections: DynamicCorrections
+    expected_end_state: str = Field(min_length=1)
+    uncertainties: list[str]
+
+
+class TutorialPlan(BaseModel):
+    tutorial_id: str = Field(min_length=1)
+    application: str = Field(min_length=1)
+    output_language: str = Field(min_length=1)
+    runtime_preferences: RuntimePreferences
+    voice: Voice
+    steps: Annotated[list[TutorialStep], Field(min_length=1)]
 
 
 class DemoCommand(BaseModel):
@@ -31,7 +119,7 @@ class DemoCommand(BaseModel):
     y: Annotated[int | None, Field(ge=0)] = None
     duration_ms: Annotated[int | None, Field(ge=0, le=10_000)] = None
     direction: Direction | None = None
-    steps: list[TutorialStep] | None = None
+    plan: TutorialPlan | None = None
     step: Annotated[int | None, Field(ge=1)] = None
 
 
@@ -131,8 +219,8 @@ def normalize_command(command: DemoCommand) -> DemoCommand:
     if command.type == "navigate" and command.direction is None:
         raise ValueError("navigate requires direction")
     if command.type == "load_tutorial":
-        if not command.steps:
-            raise ValueError("load_tutorial requires at least one step")
-        if command.step is not None and command.step > len(command.steps):
+        if command.plan is None:
+            raise ValueError("load_tutorial requires a plan")
+        if command.step is not None and command.step > len(command.plan.steps):
             raise ValueError("load_tutorial step exceeds the number of steps")
     return command
