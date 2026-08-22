@@ -2,6 +2,11 @@
 .env
 .env.*
 !.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
 
 # Editor and OS metadata
 .DS_Store
@@ -14,3 +19,6 @@ dist/
 build/
 coverage/
 *.log
+.wxt/
+.output/
+preview-dist/

@@ -1,0 +1,137 @@
+:root {
+  --oa-surface: oklch(14% 0.012 238);
+  --oa-surface-2: oklch(18% 0.018 238);
+  --oa-text: oklch(92% 0.01 238);
+  --oa-muted: oklch(72% 0.018 238);
+  --oa-accent: oklch(78% 0.145 191);
+  --oa-accent-soft: oklch(78% 0.145 191 / 18%);
+}
+
+#onshape-assist-root,
+.oa-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--oa-text);
+}
+
+.oa-cursor {
+  position: absolute;
+  left: -11px;
+  top: -11px;
+  width: 22px;
+  height: 22px;
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.oa-cursor.is-hidden,
+.oa-callout.is-hidden {
+  opacity: 0;
+}
+
+.oa-cursor-core {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--oa-accent);
+  box-shadow: 0 0 16px oklch(78% 0.145 191 / 70%);
+}
+
+.oa-cursor-ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid oklch(84% 0.12 191 / 75%);
+  border-radius: 999px;
+  box-shadow: inset 0 0 16px oklch(84% 0.12 191 / 18%), 0 0 22px oklch(84% 0.12 191 / 30%);
+}
+
+.oa-callout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  max-width: min(310px, calc(100vw - 48px));
+  padding: 10px 12px;
+  border: 1px solid oklch(84% 0.08 215 / 24%);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, oklch(18% 0.018 238 / 90%), oklch(14% 0.012 238 / 78%)),
+    radial-gradient(circle at 16px 12px, oklch(78% 0.145 191 / 22%), transparent 140px);
+  box-shadow: 0 18px 50px oklch(8% 0.02 238 / 28%);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  transform: translate3d(var(--oa-guide-x), var(--oa-guide-y), 0);
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.oa-nav {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid oklch(84% 0.08 215 / 22%);
+  border-radius: 18px;
+  background: oklch(13% 0.012 238 / 84%);
+  box-shadow: 0 16px 44px oklch(8% 0.02 238 / 26%);
+  pointer-events: auto;
+}
+
+.oa-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 48px;
+  height: 40px;
+  border: 1px solid oklch(80% 0.04 215 / 18%);
+  border-radius: 12px;
+  background: oklch(22% 0.014 238 / 86%);
+  color: var(--oa-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms, background 160ms;
+}
+
+.oa-nav button:hover,
+.oa-nav button:focus-visible,
+.oa-nav button.is-active {
+  border-color: oklch(82% 0.12 191 / 64%);
+  background: var(--oa-accent-soft);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.oa-nav kbd {
+  color: var(--oa-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.oa-step {
+  min-width: 32px;
+  color: var(--oa-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oa-cursor,
+  .oa-callout,
+  .oa-nav button {
+    transition-duration: 0ms !important;
+  }
+}

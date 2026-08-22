@@ -1,0 +1,27 @@
+{
+  "name": "@onshape-assist/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "build:preview": "vite build --config vite.preview.config.ts",
+    "check": "wxt prepare && tsc --noEmit && vitest run",
+    "dev": "wxt"
+  },
+  "dependencies": {
+    "@wxt-dev/module-react": "^1.2.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "wxt": "^0.21.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/node": "^24.3.0",
+    "@vitejs/plugin-react": "^6.1.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}

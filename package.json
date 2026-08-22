@@ -1,0 +1,12 @@
+{
+  "name": "onshape-assist",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "build": "npm run build --workspace=@onshape-assist/extension",
+    "build:preview": "npm run build:preview --workspace=@onshape-assist/extension",
+    "check": "npm run check --workspace=@onshape-assist/extension && uv run --project services/backend --extra dev pytest",
+    "dev:extension": "npm run dev --workspace=@onshape-assist/extension"
+  }
+}
