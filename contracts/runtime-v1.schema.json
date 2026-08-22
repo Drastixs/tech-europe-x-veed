@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://onshape-assist.local/contracts/runtime-v1.schema.json",
+  "title": "Onshape Assist runtime contract bundle",
+  "type": "object",
+  "required": ["contract_version", "tutorial_plan", "state_snapshot", "runtime_events", "validation_outcome", "error"],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "tutorial_plan": { "$ref": "#/$defs/tutorialPlan" },
+    "state_snapshot": { "$ref": "#/$defs/stateSnapshot" },
+    "runtime_events": { "type": "array", "items": { "$ref": "#/$defs/runtimeEvent" } },
+    "validation_outcome": { "$ref": "#/$defs/validationOutcome" },
+    "error": { "$ref": "#/$defs/error" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "tutorialPlan": { "type": "object", "required": ["tutorial_id", "title", "steps"], "properties": { "tutorial_id": { "type": "string", "minLength": 1 }, "title": { "type": "string", "minLength": 1 }, "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialStep" } } }, "additionalProperties": false },
+    "tutorialStep": { "type": "object", "required": ["step_id", "goal", "actions", "expected_visible_result"], "properties": { "step_id": { "type": "string", "minLength": 1 }, "goal": { "type": "string", "minLength": 1 }, "actions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/tutorialAction" } }, "expected_visible_result": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "tutorialAction": { "type": "object", "required": ["semantic_target", "precondition", "preferred_activation", "fallback_activation"], "properties": { "semantic_target": { "type": "string", "minLength": 1 }, "precondition": { "type": "string", "minLength": 1 }, "preferred_activation": { "enum": ["dom", "browser_input"] }, "fallback_activation": { "enum": ["browser_input", "none"] } }, "additionalProperties": false },
+    "stateSnapshot": { "type": "object", "required": ["session_id", "step_id", "state", "sequence"], "properties": { "session_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "state": { "enum": ["demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating", "complete", "paused", "failed"] }, "sequence": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+    "runtimeEvent": { "type": "object", "required": ["event", "session_id", "step_id", "timestamp_ms", "source"], "properties": { "event": { "enum": ["runtime.state.changed", "demo.action.completed", "user.takeover.detected", "baseline.restore.confirmed", "learner.observation.captured", "validation.completed", "runtime.failed"] }, "session_id": { "type": "string", "minLength": 1 }, "step_id": { "type": "string", "minLength": 1 }, "timestamp_ms": { "type": "integer", "minimum": 0 }, "source": { "enum": ["runtime", "learner", "executor", "validator", "observer"] } }, "additionalProperties": false },
+    "validationOutcome": { "type": "object", "required": ["outcome", "microversion_id"], "properties": { "outcome": { "enum": ["correct", "wrong_tool", "no_committed_change", "unexpected_geometry", "concurrent_edit"] }, "microversion_id": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "error": { "type": "object", "required": ["code", "message", "recoverable"], "properties": { "code": { "enum": ["baseline_capture_failed", "target_not_found", "provider_unavailable", "restore_failed", "validation_failed", "relay_disconnected"] }, "message": { "type": "string", "minLength": 1 }, "recoverable": { "type": "boolean" } }, "additionalProperties": false }
+  }
+}

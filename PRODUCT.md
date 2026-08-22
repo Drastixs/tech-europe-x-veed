@@ -32,6 +32,16 @@ Target WCAG 2.2 AA contrast, visible keyboard focus, reduced-motion support, and
 
 
 ## technical sections
+
+### Supported Runtime & Contracts
+
+The product runs as a Chromium MV3 extension backed by local FastAPI services.
+The extension presents guidance without moving the learner's real pointer;
+backend services own credentials and validate committed Onshape state. Shared
+tutorial plans, runtime events, state snapshots, validation outcomes, and
+errors use the versioned contract in
+[`contracts/runtime-v1.schema.json`](contracts/runtime-v1.schema.json).
+
 ### Video Analysis & Tutorial Extraction
 Understand what a video is doing, breakdown based on the video and transcript, using fal video api, to breakdown the current instructions and ui from the video for what the user is really doing, provide a actioonable and time stamped naration for what is going on within the video.
 

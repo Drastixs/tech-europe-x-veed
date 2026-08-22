@@ -1,0 +1,20 @@
+{
+  "contract_version": 1,
+  "tutorial_plan": {
+    "tutorial_id": "revolve-from-sketch-1",
+    "title": "Revolve Sketch 1",
+    "steps": [{
+      "step_id": "open-revolve",
+      "goal": "Open Revolve for Sketch 1.",
+      "actions": [{ "semantic_target": "Sketch 1 in the feature tree", "precondition": "Sketch 1 is visible.", "preferred_activation": "dom", "fallback_activation": "browser_input" }],
+      "expected_visible_result": "The Revolve dialog is open."
+    }]
+  },
+  "state_snapshot": { "session_id": "session-revolve-1", "step_id": "open-revolve", "state": "waiting", "sequence": 4 },
+  "runtime_events": [
+    { "event": "runtime.state.changed", "session_id": "session-revolve-1", "step_id": "open-revolve", "timestamp_ms": 1730000000000, "source": "runtime" },
+    { "event": "validation.completed", "session_id": "session-revolve-1", "step_id": "open-revolve", "timestamp_ms": 1730000001000, "source": "validator" }
+  ],
+  "validation_outcome": { "outcome": "correct", "microversion_id": "mv-after-revolve" },
+  "error": { "code": "provider_unavailable", "message": "The observation provider is unavailable.", "recoverable": true }
+}
