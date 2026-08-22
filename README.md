@@ -39,7 +39,8 @@ Start the relay:
 uv run --project services/backend uvicorn onshape_assist.app:app --host 127.0.0.1 --port 8000
 ```
 
-For computer-use localization, copy `.env.example` to `.env` and set `HAI_API_KEY`.
+For computer-use localization, copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
+The local computer-use branch defaults to `COMPUTER_USE_MODEL=gpt-5.6-terra`.
 
 Build the extension:
 

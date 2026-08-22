@@ -65,19 +65,21 @@ class HoloClient:
         client: httpx.AsyncClient | None = None,
     ) -> None:
         load_backend_env()
-        self.api_key = api_key if api_key is not None else os.getenv("HAI_API_KEY")
-        self.model = model or os.getenv("HAI_MODEL", "holo3-1-35b-a3b")
+        self.api_key = api_key if api_key is not None else os.getenv("OPENAI_API_KEY")
+        self.model = model or os.getenv("COMPUTER_USE_MODEL", "gpt-5.6-terra")
         self.base_url = (
-            base_url or os.getenv("HAI_API_BASE", "https://api.hcompany.ai/v1")
+            base_url or os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
         ).rstrip("/")
-        self.timeout_seconds = timeout_seconds or float(os.getenv("HAI_TIMEOUT_SECONDS", "30"))
+        self.timeout_seconds = timeout_seconds or float(
+            os.getenv("COMPUTER_USE_TIMEOUT_SECONDS", "30")
+        )
         self.client = client
 
     async def localize(
         self, screenshot_data_url: str, context: LocalizationContext
     ) -> LocalizedPoint:
         if not self.api_key:
-            raise HoloConfigurationError("HAI_API_KEY is not configured")
+            raise HoloConfigurationError("OPENAI_API_KEY is not configured")
         if not screenshot_data_url.startswith("data:image/"):
             raise HoloError("Holo localization requires an image data URL")
 
@@ -93,9 +95,14 @@ class HoloClient:
                     ],
                 }
             ],
-            "structured_outputs": {"json": schema},
-            "chat_template_kwargs": {"enable_thinking": False},
-            "temperature": 0.0,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "localized_point",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
 

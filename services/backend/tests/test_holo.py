@@ -49,9 +49,11 @@ def test_holo_localizer_sends_structured_screenshot_request():
     assert point.model_dump() == {"x": 125, "y": 750}
     assert captured["authorization"] == "Bearer h-secret"
     assert captured["body"]["model"] == "holo-test"
-    assert captured["body"]["temperature"] == 0.0
-    assert captured["body"]["chat_template_kwargs"] == {"enable_thinking": False}
-    assert captured["body"]["structured_outputs"]["json"]["additionalProperties"] is False
+    assert captured["body"]["response_format"]["type"] == "json_schema"
+    response_schema = captured["body"]["response_format"]["json_schema"]
+    assert response_schema["name"] == "localized_point"
+    assert response_schema["strict"] is True
+    assert response_schema["schema"]["additionalProperties"] is False
     content = captured["body"]["messages"][0]["content"]
     assert content[0]["image_url"]["url"].startswith("data:image/png;base64,")
     assert "Sketch 1" in content[1]["text"]
@@ -60,7 +62,7 @@ def test_holo_localizer_sends_structured_screenshot_request():
 
 def test_holo_localizer_requires_configuration_and_image_data():
     client = HoloClient(api_key="")
-    with pytest.raises(HoloConfigurationError, match="HAI_API_KEY"):
+    with pytest.raises(HoloConfigurationError, match="OPENAI_API_KEY"):
         asyncio.run(
             client.localize(
                 "data:image/png;base64,c2NyZWVu",
