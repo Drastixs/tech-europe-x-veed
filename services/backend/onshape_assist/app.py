@@ -18,6 +18,14 @@ from .narration import (
     NarrationError,
     enrich_plan_narration,
 )
+from .onshape import (
+    OnshapeClient,
+    OnshapeError,
+    OnshapeSnapshot,
+    OnshapeTarget,
+    RestoreResult,
+    ValidationResult,
+)
 from .planner import OpenAIPlanner, PlannerError
 
 Direction = Literal["left", "right"]
@@ -159,6 +167,21 @@ class TutorialPlanningRequest(BaseModel):
     step: Annotated[int, Field(ge=1)] = 1
 
 
+class RestoreRequest(BaseModel):
+    baseline: OnshapeSnapshot
+    expected_microversion_id: str = Field(min_length=1)
+
+
+class ValidationRequest(BaseModel):
+    baseline: OnshapeSnapshot
+    expected_feature_type: str = Field(min_length=1)
+    expected_microversion_id: str | None = None
+
+
+class DocumentUrlRequest(BaseModel):
+    document_url: str = Field(min_length=1)
+
+
 class DemoCommand(BaseModel):
     type: CommandType
     x: Annotated[int | None, Field(ge=0)] = None
@@ -236,6 +259,41 @@ app = FastAPI(title="Onshape Assist Relay", version="0.1.0", lifespan=lifespan)
 @app.get("/health")
 async def health() -> dict[str, int | str]:
     return {"status": "ok", "clients": relay.client_count}
+
+
+@app.post("/onshape/baselines", response_model=OnshapeSnapshot)
+async def capture_onshape_baseline(target: OnshapeTarget) -> OnshapeSnapshot:
+    return _with_onshape_client(lambda client: client.snapshot(target))
+
+
+@app.post("/onshape/baselines/from-url", response_model=OnshapeSnapshot)
+async def capture_onshape_baseline_from_url(request: DocumentUrlRequest) -> OnshapeSnapshot:
+    try:
+        target = OnshapeTarget.from_document_url(request.document_url)
+    except OnshapeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _with_onshape_client(lambda client: client.snapshot(target))
+
+
+@app.post("/onshape/restores", response_model=RestoreResult)
+async def restore_onshape_baseline(request: RestoreRequest) -> RestoreResult:
+    return _with_onshape_client(
+        lambda client: client.restore_baseline(
+            request.baseline,
+            expected_microversion_id=request.expected_microversion_id,
+        )
+    )
+
+
+@app.post("/onshape/validations", response_model=ValidationResult)
+async def validate_onshape_attempt(request: ValidationRequest) -> ValidationResult:
+    return _with_onshape_client(
+        lambda client: client.validate_attempt(
+            request.baseline,
+            expected_feature_type=request.expected_feature_type,
+            expected_microversion_id=request.expected_microversion_id,
+        )
+    )
 
 
 @app.post("/commands", response_model=DemoEnvelope)
@@ -360,3 +418,16 @@ def normalize_command(command: DemoCommand) -> DemoCommand:
         if command.step is not None and command.step > len(command.plan.steps):
             raise ValueError("load_tutorial step exceeds the number of steps")
     return command
+
+
+def _with_onshape_client(operation: Callable[[OnshapeClient], Any]) -> Any:
+    try:
+        client = OnshapeClient.from_env()
+    except OnshapeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        return operation(client)
+    except OnshapeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        client.close()
