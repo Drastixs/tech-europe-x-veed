@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .narration import (
     NarrationConfigurationError,
@@ -110,10 +110,20 @@ class TutorialStep(TutorialContractModel):
     preconditions: list[str]
     actions: Annotated[list[TutorialAction], Field(min_length=1)]
     narration: Narration
-    voice_cues: list[VoiceCue]
+    voice_cues: Annotated[list[VoiceCue], Field(min_length=1)]
     dynamic_corrections: DynamicCorrections
     expected_end_state: str = Field(min_length=1)
     uncertainties: list[str]
+
+    @model_validator(mode="after")
+    def validate_action_sequence_and_cues(self) -> TutorialStep:
+        sequences = [action.sequence for action in self.actions]
+        expected = list(range(1, len(self.actions) + 1))
+        if sequences != expected:
+            raise ValueError("tutorial action sequences must be contiguous and ordered from 1")
+        if any(cue.action_sequence not in sequences for cue in self.voice_cues):
+            raise ValueError("voice cue action_sequence must reference an action in its step")
+        return self
 
 
 class TutorialPlan(TutorialContractModel):
@@ -123,6 +133,13 @@ class TutorialPlan(TutorialContractModel):
     runtime_preferences: RuntimePreferences
     voice: Voice
     steps: Annotated[list[TutorialStep], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_unique_step_ids(self) -> TutorialPlan:
+        step_ids = [step.step_id for step in self.steps]
+        if len(step_ids) != len(set(step_ids)):
+            raise ValueError("tutorial step_id values must be unique")
+        return self
 
 
 class TutorialPlanningRequest(BaseModel):

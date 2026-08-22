@@ -6,6 +6,7 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 import onshape_assist.app as app_module
 from onshape_assist.app import TutorialPlan, app, relay
@@ -358,3 +359,19 @@ def test_generated_plan_with_extra_nested_fields_fails_contract(monkeypatch):
 
     assert response.status_code == 502
     assert "failed contract validation" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda plan: plan["steps"][0]["actions"][0].update(sequence=2),
+        lambda plan: plan["steps"][0]["voice_cues"][0].update(action_sequence=2),
+        lambda plan: plan["steps"][0].update(voice_cues=[]),
+    ],
+)
+def test_plan_contract_rejects_invalid_action_and_cue_invariants(mutate):
+    plan = planned_tutorial()
+    mutate(plan)
+
+    with pytest.raises(ValidationError):
+        TutorialPlan.model_validate(plan)
