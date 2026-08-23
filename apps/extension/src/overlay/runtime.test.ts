@@ -34,8 +34,21 @@ describe("tutorial runtime transitions", () => {
   });
 
   it("handles every defined status without a permissive fallback", () => {
-    for (const state of states) {
-      expect(typeof canTransitionRuntime(state, "failed")).toBe("boolean");
+    const allowed: Record<TutorialStepRuntimeStatus, TutorialStepRuntimeStatus[]> = {
+      demonstrating: ["demo_visible", "restoring", "paused", "failed"],
+      demo_visible: ["restoring", "paused", "failed"],
+      restoring: ["learner_attempt", "paused", "failed"],
+      waiting: ["demonstrating", "paused", "failed"],
+      learner_attempt: ["validating", "paused", "failed"],
+      validating: ["complete", "paused", "failed"],
+      complete: ["waiting", "demonstrating"],
+      paused: ["waiting", "demonstrating", "restoring", "failed"],
+      failed: ["waiting", "demonstrating"]
+    };
+    for (const from of states) {
+      for (const to of states) {
+        expect(canTransitionRuntime(from, to)).toBe(from === to || allowed[from].includes(to));
+      }
     }
   });
 });

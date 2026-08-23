@@ -16,7 +16,7 @@ import {
   type PlaybackStatus
 } from "./narration";
 import type { OverlayCommand } from "./protocol";
-import { isLearnerTakeoverEvent } from "./takeover";
+import { isLearnerTakeoverEvent, isOverlayEvent, isRelevantTakeoverKey } from "./takeover";
 import "./overlay.css";
 
 export function Overlay() {
@@ -71,7 +71,11 @@ export function Overlay() {
 
   useEffect(() => {
     const takeOver = (event: Event) => {
-      if (!takeoverArmedRef.current || !isLearnerTakeoverEvent(event)) return;
+      const keyboardTakeover = event instanceof KeyboardEvent &&
+        event.isTrusted &&
+        !isOverlayEvent(event) &&
+        isRelevantTakeoverKey(event);
+      if (!takeoverArmedRef.current || (!isLearnerTakeoverEvent(event) && !keyboardTakeover)) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -91,9 +95,11 @@ export function Overlay() {
 
     window.addEventListener("pointerdown", takeOver, { capture: true, passive: false });
     window.addEventListener("touchstart", takeOver, { capture: true, passive: false });
+    window.addEventListener("keydown", takeOver, { capture: true, passive: false });
     return () => {
       window.removeEventListener("pointerdown", takeOver, { capture: true });
       window.removeEventListener("touchstart", takeOver, { capture: true });
+      window.removeEventListener("keydown", takeOver, { capture: true });
     };
   }, []);
 
@@ -307,7 +313,7 @@ export function createStepRedoRequestedEvent(
   };
 }
 
-function runtimeStatusText(
+export function runtimeStatusText(
   status: typeof initialOverlayState.runtimeStatus,
   message: string | null
 ): string | null {

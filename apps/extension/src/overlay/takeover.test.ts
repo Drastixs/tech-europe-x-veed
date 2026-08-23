@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRelevantTakeoverKey } from "./takeover";
+import { isLearnerTakeoverEvent, isRelevantTakeoverKey } from "./takeover";
 
 function keyboardEvent(key: string, modifiers: Partial<KeyboardEvent> = {}): KeyboardEvent {
   return { key, ctrlKey: false, metaKey: false, altKey: false, target: null, ...modifiers } as KeyboardEvent;
@@ -15,5 +15,11 @@ describe("takeover keyboard filtering", () => {
   it("ignores browser shortcuts and navigation keys outside fields", () => {
     expect(isRelevantTakeoverKey(keyboardEvent("r", { ctrlKey: true }))).toBe(false);
     expect(isRelevantTakeoverKey(keyboardEvent("ArrowLeft"))).toBe(false);
+  });
+
+  it("rejects passive and synthetic pointer activity", () => {
+    const passiveEvent = { composedPath: () => [] };
+    expect(isLearnerTakeoverEvent({ ...passiveEvent, isTrusted: false } as unknown as Event)).toBe(false);
+    expect(isLearnerTakeoverEvent({ ...passiveEvent, isTrusted: true } as unknown as Event)).toBe(false);
   });
 });

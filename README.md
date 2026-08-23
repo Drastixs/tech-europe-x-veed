@@ -4,6 +4,15 @@ A Chromium MV3 extension that places a click-through assistive overlay and indep
 
 ## Run the demo
 
+### Prerequisites
+
+- Node.js 22 and npm
+- Python 3.11 or newer with [uv](https://docs.astral.sh/uv/)
+- Chromium or Chrome for the extension demo
+- `FAL_KEY` for video analysis and ElevenLabs narration; `HAI_API_KEY` for live computer-use localization
+
+The automated checks use fake provider responses and do not require either API key.
+
 ### One-command launcher
 
 On Linux, run:

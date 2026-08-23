@@ -1,0 +1,21 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: npm ci
+      - run: uv sync --project services/backend --extra dev --frozen
+      - run: npm run check
