@@ -1,4 +1,5 @@
 import { captureObservation } from "../src/computer-use/capture";
+import { LearnerObservationMonitor } from "../src/computer-use/learner-monitor";
 import {
   isCaptureObservationCommand,
   isDemoEnvelope,
@@ -13,7 +14,6 @@ import { createTutorialFromVideo } from "../src/popup/tutorial-api";
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
 const KEEPALIVE_INTERVAL_MS = 20_000;
-const LEARNER_OBSERVATION_INTERVAL_MS = 1_000;
 const DEMONSTRATE_STEP_URL = "http://127.0.0.1:8000/tutorials/demonstrate-step";
 
 export default defineBackground(() => {
@@ -24,8 +24,6 @@ export default defineBackground(() => {
   let tutorialPlan: TutorialPlan | null = null;
   let tutorialStep = 1;
   let runtimeSession: TutorialStepStatusCommand | null = null;
-  let observationTimer: ReturnType<typeof setInterval> | undefined;
-  let observationPending = false;
   const pendingCdpFallbacks = new Map<string, ExecuteActionCommand>();
   let stopped = false;
 
@@ -155,55 +153,45 @@ export default defineBackground(() => {
     }
   };
 
-  const stopLearnerMonitoring = () => {
-    if (observationTimer) clearInterval(observationTimer);
-    observationTimer = undefined;
-    observationPending = false;
+  const captureLearnerObservation = async () => {
+    if (runtimeSession?.status !== "learner_attempt") return;
+    const tab = await activeOnshapeTab();
+    const requestId = `learner_${crypto.randomUUID()}`;
+    const captured = await captureObservation(
+      { type: "capture_observation", request_id: requestId },
+      tab?.id !== undefined && tab.windowId !== undefined
+        ? { id: tab.id, windowId: tab.windowId, url: tab.url }
+        : undefined,
+      {
+        captureVisibleTab: (windowId) =>
+          browser.tabs.captureVisibleTab(windowId, { format: "png" }),
+        readViewport: async (tabId) => {
+          const response = await browser.tabs.sendMessage(tabId, {
+            channel: "onshape-assist",
+            type: "viewport.request"
+          });
+          return response as { width: number; height: number; device_pixel_ratio: number };
+        }
+      }
+    );
+    sendExtensionEvent({
+      ...captured,
+      type: captured.type === "observation.captured"
+        ? "learner.observation.captured"
+        : "learner.observation.failed",
+      session_id: runtimeSession.session_id,
+      tutorial_id: runtimeSession.tutorial_id,
+      step_id: runtimeSession.step_id,
+      timestamp_ms: Date.now()
+    }, tab?.id);
   };
 
-  const captureLearnerObservation = async () => {
-    if (observationPending || runtimeSession?.status !== "learner_attempt") return;
-    observationPending = true;
-    try {
-      const tab = await activeOnshapeTab();
-      const requestId = `learner_${crypto.randomUUID()}`;
-      const captured = await captureObservation(
-        { type: "capture_observation", request_id: requestId },
-        tab?.id !== undefined && tab.windowId !== undefined
-          ? { id: tab.id, windowId: tab.windowId, url: tab.url }
-          : undefined,
-        {
-          captureVisibleTab: (windowId) =>
-            browser.tabs.captureVisibleTab(windowId, { format: "png" }),
-          readViewport: async (tabId) => {
-            const response = await browser.tabs.sendMessage(tabId, {
-              channel: "onshape-assist",
-              type: "viewport.request"
-            });
-            return response as { width: number; height: number; device_pixel_ratio: number };
-          }
-        }
-      );
-      sendExtensionEvent({
-        ...captured,
-        type: captured.type === "observation.captured"
-          ? "learner.observation.captured"
-          : "learner.observation.failed",
-        session_id: runtimeSession.session_id,
-        tutorial_id: runtimeSession.tutorial_id,
-        step_id: runtimeSession.step_id,
-        timestamp_ms: Date.now()
-      }, tab?.id);
-    } finally {
-      observationPending = false;
-    }
-  };
+  const learnerObservationMonitor = new LearnerObservationMonitor(captureLearnerObservation);
+
+  const stopLearnerMonitoring = () => learnerObservationMonitor.stop();
 
   const startLearnerMonitoring = () => {
-    stopLearnerMonitoring();
-    observationTimer = setInterval(() => {
-      void captureLearnerObservation();
-    }, LEARNER_OBSERVATION_INTERVAL_MS);
+    learnerObservationMonitor.start();
   };
 
   const applyRuntimeStatus = (command: TutorialStepStatusCommand) => {

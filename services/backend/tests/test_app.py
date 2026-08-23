@@ -10,11 +10,22 @@ from onshape_assist.analysis.pipeline import AnalysisError
 from onshape_assist.app import (
     CaptureObservationCommand,
     DemoEnvelope,
+    LoadTutorialCommand,
     Relay,
+    TutorialStepStatusCommand,
     app,
     relay,
 )
+from onshape_assist.contracts import TutorialPlan
 from onshape_assist.holo import LocalizedPoint
+from onshape_assist.observation import LearnerObservationAssessment
+from onshape_assist.onshape import (
+    FeatureState,
+    GeometryState,
+    OnshapeSnapshot,
+    OnshapeTarget,
+    ValidationResult,
+)
 
 
 def tutorial_plan() -> dict:
@@ -102,6 +113,68 @@ def test_health_reports_ok():
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_ready_learner_observation_transitions_through_onshape_validation(monkeypatch):
+    target = OnshapeTarget(document_id="document", workspace_id="workspace", element_id="element")
+    baseline = OnshapeSnapshot(
+        target=target,
+        microversion_id="baseline",
+        features=FeatureState(
+            rollback_index=1,
+            fingerprint="features",
+            feature_ids=("sketch",),
+            feature_types=("newSketch",),
+        ),
+        geometry=GeometryState(
+            part_count=0,
+            fingerprint="geometry",
+            part_ids=(),
+        ),
+    )
+    session = app_module.TutorialStepExecutionSession(
+        session_id="session-1",
+        tutorial_id="tutorial-1",
+        step_id="revolve-sketch-1",
+        step_goal="Create a revolve from Sketch 1.",
+        expected_end_state="Revolve 1 appears in the feature tree.",
+        state="learner_attempt",
+        baseline=baseline,
+    )
+
+    class FakeHolo:
+        async def assess_learner_progress(self, *_args, **_kwargs):
+            return LearnerObservationAssessment(
+                state="ready_to_validate",
+                evidence=["Revolve 1 is visible."],
+                suggested_next_action="Confirm the result.",
+                confidence=0.98,
+            )
+
+    class FakeOnshape:
+        def validate_attempt(self, received_baseline, *, expected_feature_type):
+            assert received_baseline == baseline
+            assert expected_feature_type == "revolve"
+            return ValidationResult(outcome="correct", snapshot=baseline)
+
+    monkeypatch.setattr(app_module, "holo_factory", FakeHolo)
+    monkeypatch.setattr(app_module, "_run_onshape_operation", lambda operation: operation(FakeOnshape()))
+    monkeypatch.setattr(app_module, "active_tutorial_step_session_id", session.session_id)
+    monkeypatch.setitem(app_module.tutorial_step_sessions, session.session_id, session)
+
+    asyncio.run(
+        app_module._record_learner_observation(
+            {
+                "session_id": session.session_id,
+                "timestamp_ms": 1_700_000_000_000,
+                "screenshot_data_url": "data:image/png;base64,screen",
+            }
+        )
+    )
+
+    assert session.state == "complete"
+    assert session.validation is not None
+    assert session.validation.outcome == "correct"
 
 
 def test_launcher_page_points_to_extension_and_onshape():
@@ -334,6 +407,40 @@ async def test_reconnect_does_not_replay_ephemeral_computer_use_commands():
 
     assert websocket.accepted is True
     assert websocket.sent == []
+
+
+@pytest.mark.anyio
+async def test_reconnect_replays_tutorial_context_before_its_runtime_status():
+    class FakeWebSocket:
+        def __init__(self):
+            self.sent: list[dict[str, Any]] = []
+
+        async def accept(self):
+            pass
+
+        async def send_json(self, value):
+            self.sent.append(value)
+
+    local_relay = Relay()
+    plan = TutorialPlan.model_validate(tutorial_plan())
+    await local_relay.publish(LoadTutorialCommand(type="load_tutorial", plan=plan, step=1))
+    await local_relay.publish(
+        TutorialStepStatusCommand(
+            type="tutorial_step_status",
+            session_id="session-1",
+            tutorial_id=plan.tutorial_id,
+            step_id=plan.steps[0].step_id,
+            status="learner_attempt",
+        )
+    )
+    websocket = FakeWebSocket()
+
+    await local_relay.connect(websocket)  # type: ignore[arg-type]
+
+    assert [message["command"]["type"] for message in websocket.sent] == [
+        "load_tutorial",
+        "tutorial_step_status",
+    ]
 
 
 def test_computer_use_endpoint_round_trips_extension_events(monkeypatch):

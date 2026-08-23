@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -39,6 +40,8 @@ from .contracts import (
     TutorialStep,
     Voice,
 )
+
+__all__ = ["ClickAction", "DragAction"]
 from .holo import (
     HoloClient,
     HoloConfigurationError,
@@ -239,6 +242,7 @@ class TutorialStepExecutionSession(BaseModel):
         "validating",
         "complete",
         "paused",
+        "failed",
         "restore_failed",
         "demonstration_failed",
     ]
@@ -251,6 +255,7 @@ class TutorialStepExecutionSession(BaseModel):
     learner_observation: LearnerObservationContext = Field(
         default_factory=LearnerObservationContext
     )
+    validation: ValidationResult | None = None
     paused_from: Literal[
         "demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating"
     ] | None = None
@@ -278,11 +283,17 @@ class Relay:
         self._sequence = 0
         self._clients: set[WebSocket] = set()
         self.last_envelope: DemoEnvelope | None = None
+        self._recovery_load: DemoEnvelope | None = None
+        self._recovery_status: DemoEnvelope | None = None
 
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self._clients.add(websocket)
-        if self.last_envelope and self.last_envelope.command.type not in {
+        if self.last_envelope is not None and self._recovery_load is not None:
+            await websocket.send_json(self._recovery_load.model_dump())
+            if self._recovery_status is not None:
+                await websocket.send_json(self._recovery_status.model_dump())
+        elif self.last_envelope and self.last_envelope.command.type not in {
             "capture_observation",
             "execute_action",
         }:
@@ -299,6 +310,11 @@ class Relay:
             command=command,
         )
         self.last_envelope = envelope
+        if command.type == "load_tutorial":
+            self._recovery_load = envelope
+            self._recovery_status = None
+        elif command.type == "tutorial_step_status":
+            self._recovery_status = envelope
         disconnected: list[WebSocket] = []
         for client in self._clients:
             try:
@@ -963,3 +979,47 @@ async def _record_learner_observation(event: dict[str, Any]) -> None:
             status="paused",
             message=f"Learner observation paused: {exc}",
         )
+        return
+
+    if session.learner_observation.latest_assessment.state != "ready_to_validate":
+        return
+
+    session.state = "validating"
+    await _publish_tutorial_step_status(session)
+    try:
+        validation = _run_onshape_operation(
+            lambda client: client.validate_attempt(
+                session.baseline,
+                expected_feature_type=_expected_feature_type(session),
+            )
+        )
+    except HTTPException as exc:
+        session.state = "failed"
+        await _publish_tutorial_step_status(session, status="failed", message=str(exc.detail))
+        return
+
+    session.validation = validation
+    if validation.outcome == "correct":
+        session.state = "complete"
+        await _publish_tutorial_step_status(session, message="Step complete.")
+        return
+
+    session.state = "paused"
+    await _publish_tutorial_step_status(
+        session,
+        status="paused",
+        message=f"Validation outcome: {validation.outcome}",
+    )
+
+
+def _expected_feature_type(session: TutorialStepExecutionSession) -> str:
+    """Derive the committed Onshape feature type from the step's modelling language."""
+    for candidate in (session.step_goal, session.expected_end_state):
+        match = re.search(
+            r"\b(create|open|confirm)\s+(?:a\s+|an\s+|the\s+)?([a-z]+)",
+            candidate,
+            re.IGNORECASE,
+        )
+        if match:
+            return match.group(2).lower()
+    raise HTTPException(status_code=422, detail="step does not identify an expected Onshape feature type")

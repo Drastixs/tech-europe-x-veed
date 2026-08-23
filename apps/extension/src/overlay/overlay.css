@@ -85,6 +85,7 @@
     0 10px 28px oklch(7% 0.015 252 / 28%),
     0 0 12px oklch(68% 0.19 252 / 10%);
   pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .oa-panel {
@@ -98,10 +99,11 @@
   background: oklch(13% 0.014 252 / 92%);
   box-shadow: 0 14px 40px oklch(7% 0.015 252 / 30%);
   pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .oa-panel-eyebrow, .oa-panel-progress { margin: 0; color: var(--oa-muted); font-size: 12px; }
-.oa-panel h2 { margin: 7px 0; font-size: 15px; line-height: 1.35; }
+.oa-panel h2 { margin: 7px 0; overflow-wrap: anywhere; font-size: 15px; line-height: 1.35; }
 .oa-panel-state { margin: 12px 0; font-weight: 650; }
 .oa-panel-controls { display: flex; gap: 8px; }
 .oa-panel button { min-height: 36px; padding: 0 11px; border: 1px solid oklch(68% 0.19 252 / 42%); border-radius: 9px; background: var(--oa-surface-2); color: var(--oa-text); cursor: pointer; font: inherit; }
