@@ -7,6 +7,7 @@ import type {
   TutorialStep,
   TutorialStepRuntimeStatus
 } from "./protocol";
+import { canTransitionRuntime } from "./runtime";
 
 export type NarrationMode = "concise" | "detailed";
 
@@ -130,6 +131,7 @@ export function reduceOverlayState(state: OverlayState, action: LocalAction): Ov
       };
     }
     case "tutorial_step_status": {
+      if (!canTransitionRuntime(state.runtimeStatus, action.status)) return state;
       const stepIndex = state.steps.findIndex((step) => step.step_id === action.step_id);
       const demonstrating = action.status === "demonstrating";
       const demoVisible = action.status === "demo_visible";

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExecuteActionCommand, TutorialAction } from "../overlay/protocol";
-import { executeOnshapeAction, type ActionEnvironment, type PageElement } from "./executor";
+import {
+  actionEnvironmentForOverlay,
+  executeOnshapeAction,
+  type ActionEnvironment,
+  type PageElement
+} from "./executor";
 
 const element = (label: string): PageElement => ({
   textContent: label,
@@ -41,6 +46,7 @@ const environment = (target: PageElement | null = element("Sketch 1")): ActionEn
   scroll: vi.fn(),
   drag: vi.fn().mockResolvedValue(undefined),
   conditionVisible: vi.fn().mockReturnValue(true),
+  expectedResultVisible: vi.fn().mockReturnValue(true),
   delay: vi.fn().mockResolvedValue(undefined)
 });
 
@@ -61,7 +67,22 @@ describe("executeOnshapeAction", () => {
     const result = await executeOnshapeAction(command(), page);
 
     expect(result.type).toBe("action.failed");
+    expect(result.outcome).toBe("retryable");
     expect(page.click).not.toHaveBeenCalled();
+  });
+
+  it("uses a retryable CDP fallback when the visible result is not observed", async () => {
+    const page = environment();
+    vi.mocked(page.expectedResultVisible).mockReturnValue(false);
+
+    const result = await executeOnshapeAction(command(), page);
+
+    expect(result).toMatchObject({
+      type: "action.failed",
+      outcome: "retryable",
+      fallback_activation: "cdp",
+      observed_visible_result: false
+    });
   });
 
   it("refuses to interact with the assistant overlay", async () => {
@@ -72,6 +93,14 @@ describe("executeOnshapeAction", () => {
 
     expect(result.success).toBe(false);
     expect(page.click).not.toHaveBeenCalled();
+  });
+
+  it("recognizes an overlay descendant across the Shadow DOM boundary", () => {
+    const overlay = { contains: vi.fn().mockReturnValue(true) } as unknown as HTMLElement;
+    const actionEnvironment = actionEnvironmentForOverlay(() => overlay);
+
+    expect(actionEnvironment.isOverlayElement(element("Redo"))).toBe(true);
+    expect(overlay.contains).toHaveBeenCalled();
   });
 
   it("passes typed text parameters to an editable target", async () => {

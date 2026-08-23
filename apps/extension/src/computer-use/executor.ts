@@ -30,6 +30,7 @@ export type ActionEnvironment = {
   drag: (start: PageElement, startPoint: PixelPoint, endPoint: PixelPoint, durationMs: number) =>
     Promise<void>;
   conditionVisible: (condition: string) => boolean;
+  expectedResultVisible: (expectedResult: string) => boolean;
   delay: (durationMs: number) => Promise<void>;
 };
 
@@ -41,26 +42,26 @@ export async function executeOnshapeAction(
   try {
     if (action.action_type === "move") {
       await environment.delay(action.parameters.duration_ms);
-      return completed(command.action_id, true, null, null);
+      return completed(command.action_id, null, null);
     }
     if (action.action_type === "scroll") {
       environment.scroll(action.parameters.delta_x, action.parameters.delta_y);
       await environment.delay(action.parameters.duration_ms);
-      return completed(command.action_id, true, null, "Onshape viewport");
+      return completed(command.action_id, "Onshape viewport", null);
     }
     if (action.action_type === "wait") {
       if (action.parameters.duration_ms !== null) {
         await environment.delay(action.parameters.duration_ms);
       }
       if (action.parameters.condition && !environment.conditionVisible(action.parameters.condition)) {
-        return failed(command.action_id, "Wait condition is not visible", null);
+        return retryable(command.action_id, "Wait condition is not visible", null, null);
       }
-      return completed(command.action_id, true, null, action.parameters.condition);
+      return completed(command.action_id, action.parameters.condition, null);
     }
 
     const element = findSafeTarget(environment, command.target, action.target_label);
     if (!element) {
-      return failed(command.action_id, "Localized point did not match the requested target", null);
+      return retryable(command.action_id, "Localized point did not match the requested target", null, action.fallback_activation);
     }
     const description = describeElement(element);
 
@@ -77,7 +78,7 @@ export async function executeOnshapeAction(
         break;
       case "drag":
         if (!command.end_target) {
-          return failed(command.action_id, "Drag action is missing its destination", description);
+          return terminal(command.action_id, "Drag action is missing its destination", description);
         }
         await environment.drag(
           element,
@@ -106,9 +107,12 @@ export async function executeOnshapeAction(
         environment.click(element, "primary");
         break;
     }
-    return completed(command.action_id, true, null, description);
+    if (!environment.expectedResultVisible(action.expected_visible_result)) {
+      return retryable(command.action_id, "Expected visible result was not observed", description, action.fallback_activation);
+    }
+    return completed(command.action_id, description, true);
   } catch (error) {
-    return failed(
+    return terminal(
       command.action_id,
       error instanceof Error ? error.message : "Onshape action execution failed",
       null
@@ -147,27 +151,44 @@ const normalize = (value: string) => value.trim().toLocaleLowerCase().replace(/\
 
 const completed = (
   action_id: string,
-  success: boolean,
-  reason: string | null,
-  element_description: string | null
+  element_description: string | null,
+  observed_visible_result: boolean | null
 ): ActionCompletedEvent => ({
   type: "action.completed",
   action_id,
-  success,
-  reason,
-  element_description
+  success: true,
+  outcome: "succeeded",
+  reason: null,
+  element_description,
+  observed_visible_result,
+  fallback_activation: null
 });
 
-const failed = (
+const retryable = (
   action_id: string,
   reason: string,
-  element_description: string | null
+  element_description: string | null,
+  fallback_activation: "cdp" | null
 ): ActionCompletedEvent => ({
   type: "action.failed",
   action_id,
   success: false,
   reason,
-  element_description
+  outcome: "retryable",
+  element_description,
+  observed_visible_result: false,
+  fallback_activation
+});
+
+const terminal = (action_id: string, reason: string, element_description: string | null): ActionCompletedEvent => ({
+  type: "action.failed",
+  action_id,
+  success: false,
+  outcome: "terminal",
+  reason,
+  element_description,
+  observed_visible_result: null,
+  fallback_activation: null
 });
 
 const asHTMLElement = (element: PageElement) => element as HTMLElement;
@@ -255,5 +276,23 @@ export const browserActionEnvironment: ActionEnvironment = {
     }));
   },
   conditionVisible: (condition) => normalize(document.body.innerText).includes(normalize(condition)),
+  expectedResultVisible: (expectedResult) => normalize(document.body.innerText).includes(normalize(expectedResult)),
   delay: (durationMs) => new Promise((resolve) => window.setTimeout(resolve, durationMs))
 };
+
+/**
+ * The overlay is mounted inside WXT's Shadow DOM, so closest() alone cannot
+ * identify its descendants from a document-level hit test.
+ */
+export function actionEnvironmentForOverlay(
+  overlayElement: () => HTMLElement | undefined
+): ActionEnvironment {
+  return {
+    ...browserActionEnvironment,
+    isOverlayElement: (element) => {
+      const overlay = overlayElement();
+      return Boolean(overlay?.contains(element as unknown as Node)) ||
+        browserActionEnvironment.isOverlayElement(element);
+    }
+  };
+}

@@ -12,7 +12,7 @@ export default defineConfig({
       "https://cad.onshape.com/documents/*",
       "http://127.0.0.1:8000/*"
     ],
-    permissions: ["activeTab", "tabs"],
+    permissions: ["activeTab", "debugger", "tabs"],
     action: { default_title: "Show Onshape Assist" }
   }
 });

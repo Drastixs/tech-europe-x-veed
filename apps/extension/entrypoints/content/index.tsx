@@ -5,7 +5,7 @@ import {
   type DemoCommand
 } from "../../src/overlay/protocol";
 import {
-  browserActionEnvironment,
+  actionEnvironmentForOverlay,
   executeOnshapeAction
 } from "../../src/computer-use/executor";
 
@@ -14,6 +14,7 @@ export default defineContentScript({
   cssInjectionMode: "ui",
   async main(ctx) {
     let overlay: OverlayMount | undefined;
+    const actionEnvironment = actionEnvironmentForOverlay(() => overlay?.element);
 
     const ui = await createShadowRootUi(ctx, {
       name: "onshape-assist",
@@ -46,9 +47,16 @@ export default defineContentScript({
           device_pixel_ratio: window.devicePixelRatio
         });
       }
+      if (candidate.type === "cdp.verify_visible_result") {
+        const expected = (candidate as { expected_visible_result?: unknown }).expected_visible_result;
+        return Promise.resolve(
+          typeof expected === "string" &&
+          document.body.innerText.toLocaleLowerCase().includes(expected.toLocaleLowerCase())
+        );
+      }
       if (!candidate.command) return;
       if (isExecuteActionCommand(candidate.command)) {
-        void executeOnshapeAction(candidate.command, browserActionEnvironment).then((event) =>
+        void executeOnshapeAction(candidate.command, actionEnvironment).then((event) =>
           browser.runtime.sendMessage({ channel: "onshape-assist", event })
         );
         return;

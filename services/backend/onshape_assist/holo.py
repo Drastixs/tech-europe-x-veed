@@ -8,6 +8,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .config import load_backend_env
+from .observation import LearnerObservationAssessment, LearnerObservationContext
 
 
 class HoloError(Exception):
@@ -128,3 +129,73 @@ class HoloClient:
             return LocalizedPoint.model_validate_json(content)
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as exc:
             raise HoloError("Holo returned an invalid localization response") from exc
+
+    async def assess_learner_progress(
+        self,
+        context: LearnerObservationContext,
+        *,
+        step_goal: str,
+        expected_end_state: str,
+    ) -> LearnerObservationAssessment:
+        if not self.api_key:
+            raise HoloConfigurationError("HAI_API_KEY is not configured")
+        if not context.recent_screenshots:
+            raise HoloError("Learner progress assessment requires a screenshot")
+
+        content: list[dict[str, object]] = [
+            {"type": "image_url", "image_url": {"url": screenshot}}
+            for screenshot in context.recent_screenshots
+        ]
+        content.append(
+            {
+                "type": "text",
+                "text": (
+                    context.observation_prompt(
+                        step_goal=step_goal, expected_end_state=expected_end_state
+                    )
+                    + "\nOutput valid JSON matching this schema: "
+                    + json.dumps(
+                        LearnerObservationAssessment.model_json_schema(), separators=(",", ":")
+                    )
+                ),
+            }
+        )
+        response = await self._request({
+            "model": self.model,
+            "messages": [{"role": "user", "content": content}],
+            "structured_outputs": {"json": LearnerObservationAssessment.model_json_schema()},
+            "chat_template_kwargs": {"enable_thinking": False},
+            "temperature": 0.0,
+        })
+        try:
+            return LearnerObservationAssessment.model_validate_json(
+                response.json()["choices"][0]["message"]["content"]
+            )
+        except (KeyError, IndexError, TypeError, ValueError, ValidationError) as exc:
+            raise HoloError("Holo returned an invalid learner observation response") from exc
+
+    async def _request(self, payload: dict[str, object]) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            if self.client is not None:
+                response = await self.client.post(
+                    f"{self.base_url}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=self.timeout_seconds,
+                )
+            else:
+                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions", json=payload, headers=headers
+                    )
+        except httpx.TimeoutException as exc:
+            raise HoloError("Holo request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise HoloError("Holo request failed") from exc
+
+        if response.is_error:
+            request_id = response.headers.get("x-request-id")
+            suffix = f" (request {request_id})" if request_id else ""
+            raise HoloError(f"Holo returned {response.status_code}{suffix}")
+        return response
