@@ -52,6 +52,7 @@ from .narration import (
     NarrationError,
     enrich_plan_narration,
 )
+from .observation import LearnerObservationContext
 from .onshape import (
     OnshapeClient,
     OnshapeError,
@@ -170,7 +171,17 @@ class TutorialStepStatusCommand(CommandBase):
     session_id: str = Field(min_length=1)
     tutorial_id: str = Field(min_length=1)
     step_id: str = Field(min_length=1)
-    status: Literal["demonstrating", "demo_visible", "restoring", "learner_attempt", "failed"]
+    status: Literal[
+        "demonstrating",
+        "demo_visible",
+        "restoring",
+        "waiting",
+        "learner_attempt",
+        "validating",
+        "complete",
+        "paused",
+        "failed",
+    ]
     message: str | None = None
 
 
@@ -217,11 +228,17 @@ class TutorialStepExecutionSession(BaseModel):
     session_id: str = Field(min_length=1)
     tutorial_id: str = Field(min_length=1)
     step_id: str = Field(min_length=1)
+    step_goal: str = Field(min_length=1)
+    expected_end_state: str = Field(min_length=1)
     state: Literal[
         "demonstrating",
         "demo_visible",
         "restoring",
         "learner_attempt",
+        "waiting",
+        "validating",
+        "complete",
+        "paused",
         "restore_failed",
         "demonstration_failed",
     ]
@@ -231,6 +248,12 @@ class TutorialStepExecutionSession(BaseModel):
     restore: RestoreResult | None = None
     learner_observation_count: Annotated[int, Field(ge=0)] = 0
     latest_learner_observation_at_ms: Annotated[int | None, Field(ge=0)] = None
+    learner_observation: LearnerObservationContext = Field(
+        default_factory=LearnerObservationContext
+    )
+    paused_from: Literal[
+        "demonstrating", "demo_visible", "restoring", "waiting", "learner_attempt", "validating"
+    ] | None = None
 
 
 class HoloLocalizationRequest(BaseModel):
@@ -533,6 +556,8 @@ async def demonstrate_tutorial_step(
             session_id=f"tutorial_step_{uuid4().hex}",
             tutorial_id=request.plan.tutorial_id,
             step_id=tutorial_step.step_id,
+            step_goal=tutorial_step.goal,
+            expected_end_state=tutorial_step.expected_end_state,
             state="demonstrating",
             baseline=baseline,
         )
@@ -704,10 +729,14 @@ async def extension_socket(websocket: WebSocket) -> None:
                     "observation.captured",
                     "learner.observation.captured",
                 }:
-                    _record_learner_observation(event)
+                    asyncio.create_task(_record_learner_observation(event))
                 if event.get("type") == "user.takeover":
                     async with computer_use_lock:
                         await _restore_active_tutorial_step(event.get("session_id"))
+                if event.get("type") == "tutorial.runtime.pause.requested":
+                    await _pause_active_tutorial_step(event.get("session_id"))
+                if event.get("type") == "tutorial.runtime.resume.requested":
+                    await _resume_active_tutorial_step(event.get("session_id"))
     except WebSocketDisconnect:
         relay.disconnect(websocket)
 
@@ -754,13 +783,32 @@ def _run_onshape_operation(operation: Callable[[OnshapeClient], Any]) -> Any:
 async def _publish_tutorial_step_status(
     session: TutorialStepExecutionSession,
     *,
-    status: Literal["demonstrating", "demo_visible", "restoring", "learner_attempt", "failed"]
+    status: Literal[
+        "demonstrating",
+        "demo_visible",
+        "restoring",
+        "waiting",
+        "learner_attempt",
+        "validating",
+        "complete",
+        "paused",
+        "failed",
+    ]
     | None = None,
     message: str | None = None,
 ) -> None:
     published_status = status or (
         session.state
-        if session.state in {"demonstrating", "demo_visible", "restoring", "learner_attempt"}
+        if session.state in {
+            "demonstrating",
+            "demo_visible",
+            "restoring",
+            "waiting",
+            "learner_attempt",
+            "validating",
+            "complete",
+            "paused",
+        }
         else "failed"
     )
     await relay.publish(
@@ -792,6 +840,8 @@ async def _restore_active_tutorial_step(requested_session_id: Any = None) -> Non
 
     session.state = "restoring"
     await _publish_tutorial_step_status(session)
+
+
     try:
         restore = _run_onshape_operation(
             lambda client: client.restore_baseline(
@@ -817,6 +867,33 @@ async def _restore_active_tutorial_step(requested_session_id: Any = None) -> Non
     session.state = "learner_attempt"
     await relay.publish(DisarmTakeoverCommand(type="disarm_takeover"))
     await _publish_tutorial_step_status(session)
+
+
+async def _pause_active_tutorial_step(requested_session_id: Any = None) -> None:
+    session = _active_tutorial_step_session(requested_session_id)
+    if session is None or session.state in {"complete", "failed", "paused"}:
+        return
+    session.paused_from = session.state
+    session.state = "paused"
+    await _publish_tutorial_step_status(session, message="Tutorial paused.")
+
+
+async def _resume_active_tutorial_step(requested_session_id: Any = None) -> None:
+    session = _active_tutorial_step_session(requested_session_id)
+    if session is None or session.state != "paused" or session.paused_from is None:
+        return
+    session.state = session.paused_from
+    session.paused_from = None
+    await _publish_tutorial_step_status(session)
+
+
+def _active_tutorial_step_session(requested_session_id: Any) -> TutorialStepExecutionSession | None:
+    session_id = active_tutorial_step_session_id
+    if session_id is None:
+        return None
+    if isinstance(requested_session_id, str) and requested_session_id != session_id:
+        return None
+    return tutorial_step_sessions.get(session_id)
 
 
 async def _restore_visible_demo_before_redo(target: OnshapeTarget) -> None:
@@ -856,7 +933,7 @@ async def _restore_visible_demo_before_redo(target: OnshapeTarget) -> None:
     session.state = "learner_attempt"
 
 
-def _record_learner_observation(event: dict[str, Any]) -> None:
+async def _record_learner_observation(event: dict[str, Any]) -> None:
     session_id = active_tutorial_step_session_id
     session = tutorial_step_sessions.get(session_id) if session_id else None
     if session is None or session.state != "learner_attempt":
@@ -869,3 +946,20 @@ def _record_learner_observation(event: dict[str, Any]) -> None:
         timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
     session.learner_observation_count += 1
     session.latest_learner_observation_at_ms = timestamp_ms
+    screenshot = event.get("screenshot_data_url")
+    if not isinstance(screenshot, str) or not screenshot.startswith("data:image/"):
+        return
+    session.learner_observation.add_screenshot(screenshot, timestamp_ms)
+    try:
+        session.learner_observation.latest_assessment = await holo_factory().assess_learner_progress(
+            session.learner_observation,
+            step_goal=session.step_goal,
+            expected_end_state=session.expected_end_state,
+        )
+    except HoloError as exc:
+        session.state = "paused"
+        await _publish_tutorial_step_status(
+            session,
+            status="paused",
+            message=f"Learner observation paused: {exc}",
+        )

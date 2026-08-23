@@ -2,7 +2,9 @@ import { captureObservation } from "../src/computer-use/capture";
 import {
   isCaptureObservationCommand,
   isDemoEnvelope,
+  isExecuteActionCommand,
   isTutorialStepStatusCommand,
+  type ExecuteActionCommand,
   type TutorialPlan,
   type TutorialStepStatusCommand
 } from "../src/overlay/protocol";
@@ -24,6 +26,7 @@ export default defineBackground(() => {
   let runtimeSession: TutorialStepStatusCommand | null = null;
   let observationTimer: ReturnType<typeof setInterval> | undefined;
   let observationPending = false;
+  const pendingCdpFallbacks = new Map<string, ExecuteActionCommand>();
   let stopped = false;
 
   const activeOnshapeTab = async () => {
@@ -68,6 +71,88 @@ export default defineBackground(() => {
       tab_id: tabId ?? registeredTabId ?? null,
       event
     });
+  };
+
+  const executeCdpFallback = async (tabId: number, command: ExecuteActionCommand) => {
+    await sendToRegisteredTab({ type: "disarm_takeover" });
+    const debuggee = { tabId };
+    try {
+      await browser.debugger.attach(debuggee, "1.3");
+      const action = command.action;
+      const target = command.target;
+      if (action.action_type === "click" || action.action_type === "selection") {
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mousePressed", x: target.x, y: target.y, button: "left", clickCount: 1
+        });
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseReleased", x: target.x, y: target.y, button: "left", clickCount: 1
+        });
+      } else if (action.action_type === "double_click") {
+        for (const clickCount of [1, 2]) {
+          await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+            type: "mousePressed", x: target.x, y: target.y, button: "left", clickCount
+          });
+          await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+            type: "mouseReleased", x: target.x, y: target.y, button: "left", clickCount
+          });
+        }
+      } else if (action.action_type === "keypress") {
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "keyDown", key: action.parameters.key
+        });
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+          type: "keyUp", key: action.parameters.key
+        });
+      } else if (action.action_type === "type") {
+        await browser.debugger.sendCommand(debuggee, "Input.insertText", { text: action.parameters.text });
+      } else if (action.action_type === "scroll") {
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseWheel", x: target.x, y: target.y,
+          deltaX: action.parameters.delta_x, deltaY: action.parameters.delta_y
+        });
+      } else if (action.action_type === "drag" && command.end_target) {
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mousePressed", x: target.x, y: target.y, button: "left", buttons: 1
+        });
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseMoved", x: command.end_target.x, y: command.end_target.y, buttons: 1
+        });
+        await browser.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseReleased", x: command.end_target.x, y: command.end_target.y, button: "left"
+        });
+      } else {
+        throw new Error(`CDP fallback does not support ${action.action_type}`);
+      }
+      const observed = await browser.tabs.sendMessage(tabId, {
+        channel: "onshape-assist",
+        type: "cdp.verify_visible_result",
+        expected_visible_result: action.expected_visible_result
+      });
+      sendExtensionEvent({
+        type: observed ? "action.completed" : "action.failed",
+        action_id: command.action_id,
+        success: Boolean(observed),
+        outcome: observed ? "succeeded" : "retryable",
+        reason: observed ? null : "CDP action did not produce the expected visible result",
+        element_description: null,
+        observed_visible_result: Boolean(observed),
+        fallback_activation: null
+      }, tabId);
+    } catch (error) {
+      sendExtensionEvent({
+        type: "action.failed",
+        action_id: command.action_id,
+        success: false,
+        outcome: "terminal",
+        reason: error instanceof Error ? error.message : "CDP fallback failed",
+        element_description: null,
+        observed_visible_result: null,
+        fallback_activation: null
+      }, tabId);
+    } finally {
+      pendingCdpFallbacks.delete(command.action_id);
+      await browser.debugger.detach(debuggee).catch(() => undefined);
+    }
   };
 
   const stopLearnerMonitoring = () => {
@@ -190,6 +275,9 @@ export default defineBackground(() => {
         const envelope = JSON.parse(String(event.data));
         if (!isDemoEnvelope(envelope)) return;
         const command = envelope.command;
+        if (isExecuteActionCommand(command)) {
+          pendingCdpFallbacks.set(command.action_id, command);
+        }
         if (command.type === "load_tutorial") {
           tutorialPlan = command.plan;
           tutorialStep = command.step ?? 1;
@@ -260,6 +348,20 @@ export default defineBackground(() => {
     if (candidate.type === "tab.ready") void registerTab(sender.tab.id);
     if (candidate.event) {
       const localEvent = candidate.event as { type?: string; step_id?: string };
+      const fallbackEvent = candidate.event as { action_id?: string; outcome?: string; fallback_activation?: string };
+      if (
+        localEvent.type === "action.failed" &&
+        fallbackEvent.outcome === "retryable" &&
+        fallbackEvent.fallback_activation === "cdp" &&
+        typeof fallbackEvent.action_id === "string"
+      ) {
+        const command = pendingCdpFallbacks.get(fallbackEvent.action_id);
+        if (command) void executeCdpFallback(sender.tab.id, command);
+        return;
+      }
+      if (localEvent.type === "action.completed" && typeof fallbackEvent.action_id === "string") {
+        pendingCdpFallbacks.delete(fallbackEvent.action_id);
+      }
       if (localEvent.type === "tutorial.step.redo.requested") {
         return runTutorialStep(undefined, localEvent.step_id);
       }

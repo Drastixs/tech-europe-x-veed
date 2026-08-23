@@ -12,6 +12,7 @@ from onshape_assist.holo import (
     HoloError,
     LocalizationContext,
 )
+from onshape_assist.observation import LearnerObservationContext
 
 
 def test_holo_localizer_sends_structured_screenshot_request():
@@ -121,3 +122,47 @@ def test_holo_localizer_reports_provider_status_without_leaking_body():
     with pytest.raises(HoloError, match=r"401.*req_123") as error:
         asyncio.run(run())
     assert "provider detail" not in str(error.value)
+
+
+def test_holo_observer_sends_no_more_than_three_images_and_requires_evidence():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "state": "progressing",
+                                    "evidence": ["Sketch 1 is selected"],
+                                    "suggested_next_action": "Open Revolve",
+                                    "confidence": 0.8,
+                                }
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+
+    async def run():
+        context = LearnerObservationContext()
+        for timestamp in (1_000, 2_000, 3_000, 4_000):
+            context.add_screenshot(f"data:image/png;base64,{timestamp}", timestamp)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await HoloClient(api_key="h-secret", client=client).assess_learner_progress(
+                context,
+                step_goal="Open Revolve",
+                expected_end_state="The Revolve dialog is open.",
+            )
+
+    assessment = asyncio.run(run())
+
+    assert assessment.state == "progressing"
+    content = captured["body"]["messages"][0]["content"]
+    assert len([item for item in content if item["type"] == "image_url"]) == 3
+    assert "Onshape API validation is the final authority" in content[-1]["text"]

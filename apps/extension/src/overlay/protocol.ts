@@ -137,7 +137,11 @@ export type TutorialStepRuntimeStatus =
   | "demonstrating"
   | "demo_visible"
   | "restoring"
+  | "waiting"
   | "learner_attempt"
+  | "validating"
+  | "complete"
+  | "paused"
   | "failed";
 
 export type TutorialStepStatusCommand = {
@@ -224,8 +228,11 @@ export type ActionCompletedEvent = {
   type: "action.completed" | "action.failed";
   action_id: string;
   success: boolean;
+  outcome: "succeeded" | "retryable" | "terminal";
   reason: string | null;
   element_description: string | null;
+  observed_visible_result: boolean | null;
+  fallback_activation: "cdp" | null;
 };
 
 export type ComputerUseEvent =
@@ -483,4 +490,5 @@ const isPositiveInteger = (value: unknown): value is number =>
   Number.isInteger(value) && Number(value) >= 1;
 const isTutorialStepRuntimeStatus = (value: unknown): value is TutorialStepRuntimeStatus =>
   value === "demonstrating" || value === "demo_visible" || value === "restoring" ||
-  value === "learner_attempt" || value === "failed";
+  value === "waiting" || value === "learner_attempt" || value === "validating" ||
+  value === "complete" || value === "paused" || value === "failed";

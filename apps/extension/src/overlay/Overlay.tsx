@@ -155,6 +155,11 @@ export function Overlay() {
     }
   };
 
+  const requestRuntimeEvent = (type: "tutorial.runtime.pause.requested" | "tutorial.runtime.resume.requested" | "user.takeover") => {
+    if (typeof browser === "undefined") return;
+    void browser.runtime.sendMessage({ channel: "onshape-assist", event: { type } });
+  };
+
   if (!state.sessionVisible) return null;
 
   return (
@@ -177,6 +182,27 @@ export function Overlay() {
       >
         <span>{runtimeText ?? currentTutorialText(state)}</span>
       </div>
+
+      <aside className="oa-panel" aria-label="Tutorial controls">
+        <p className="oa-panel-eyebrow">Onshape Assist</p>
+        <h2>{currentStep?.goal ?? "Waiting for a tutorial"}</h2>
+        <p className="oa-panel-progress">Step {state.steps.length ? `${state.step} of ${state.steps.length}` : "0 of 0"}</p>
+        <p className="oa-panel-state" role="status">{runtimeText ?? "Ready"}</p>
+        <div className="oa-panel-controls">
+          {state.runtimeStatus === "paused" ? (
+            <button type="button" onClick={() => requestRuntimeEvent("tutorial.runtime.resume.requested")}>Resume</button>
+          ) : (
+            <button type="button" onClick={() => requestRuntimeEvent("tutorial.runtime.pause.requested")}>Pause</button>
+          )}
+          <button
+            type="button"
+            onClick={() => requestRuntimeEvent("user.takeover")}
+            disabled={state.runtimeStatus !== "demo_visible"}
+          >
+            Try it myself
+          </button>
+        </div>
+      </aside>
 
       <nav className="oa-nav" aria-label="Tutorial steps">
         <button
@@ -285,9 +311,14 @@ function runtimeStatusText(
   status: typeof initialOverlayState.runtimeStatus,
   message: string | null
 ): string | null {
+  if (status === "demonstrating") return "Showing the next step…";
   if (status === "demo_visible") return "Click when you’re ready to try.";
   if (status === "restoring") return "Resetting the demo state…";
+  if (status === "waiting") return "Waiting for the next step…";
   if (status === "learner_attempt") return "Your turn.";
+  if (status === "validating") return "Checking your result…";
+  if (status === "complete") return "Step complete.";
+  if (status === "paused") return message || "Paused. You can retry when ready.";
   if (status === "failed") return message || "I couldn’t complete that step. Try redo.";
   return null;
 }
