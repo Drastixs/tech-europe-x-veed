@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import type { TutorialCreationResult } from "../../src/popup/tutorial-api";
+import type { SavedTutorial } from "../../src/popup/tutorial-library";
 import { isOnshapeDocumentUrl, validateTutorialUrl } from "../../src/popup/tutorial-url";
 
 type TabState = "checking" | "ready" | "blocked";
@@ -8,6 +9,20 @@ type SubmissionState =
   | { type: "loading" }
   | { type: "error"; message: string }
   | { type: "success"; tutorialId: string };
+type ReplayState =
+  | { type: "idle" }
+  | { type: "loading"; tutorialId: string }
+  | { type: "error"; tutorialId: string; message: string };
+
+type TutorialCreationResponse = TutorialCreationResult & { tutorial?: SavedTutorial };
+
+const sourceLabel = (videoUrl: string) => {
+  try {
+    return new URL(videoUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return "Video tutorial";
+  }
+};
 
 export function Popup() {
   const inputId = useId();
@@ -15,6 +30,9 @@ export function Popup() {
   const [tabState, setTabState] = useState<TabState>("checking");
   const [tutorialUrl, setTutorialUrl] = useState("");
   const [submission, setSubmission] = useState<SubmissionState>({ type: "idle" });
+  const [tutorials, setTutorials] = useState<SavedTutorial[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [replay, setReplay] = useState<ReplayState>({ type: "idle" });
 
   useEffect(() => {
     let active = true;
@@ -33,6 +51,22 @@ export function Popup() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void browser.runtime.sendMessage({ channel: "onshape-assist", type: "tutorial.list" })
+      .then((response: { ok?: boolean; tutorials?: SavedTutorial[] } | undefined) => {
+        if (active && response?.ok && Array.isArray(response.tutorials)) {
+          setTutorials(response.tutorials);
+        }
+      })
+      .finally(() => {
+        if (active) setLibraryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (tabState !== "ready") return;
@@ -44,13 +78,13 @@ export function Popup() {
     }
 
     setSubmission({ type: "loading" });
-    let response: TutorialCreationResult | undefined;
+    let response: TutorialCreationResponse | undefined;
     try {
       response = (await browser.runtime.sendMessage({
         channel: "onshape-assist",
         type: "tutorial.create",
         videoUrl: result.url
-      })) as TutorialCreationResult | undefined;
+      })) as TutorialCreationResponse | undefined;
     } catch {
       setSubmission({
         type: "error",
@@ -65,7 +99,30 @@ export function Popup() {
       });
       return;
     }
+    if (response.tutorial) {
+      setTutorials((current) => [
+        response.tutorial as SavedTutorial,
+        ...current.filter((tutorial) => tutorial.tutorialId !== response?.tutorial?.tutorialId)
+      ]);
+    }
     setSubmission({ type: "success", tutorialId: response.tutorialId });
+  };
+
+  const replayTutorial = async (tutorialId: string) => {
+    if (tabState !== "ready") return;
+    setReplay({ type: "loading", tutorialId });
+    try {
+      const response = await browser.runtime.sendMessage({
+        channel: "onshape-assist",
+        type: "tutorial.replay",
+        tutorialId
+      }) as { ok?: boolean; message?: string } | undefined;
+      setReplay(response?.ok
+        ? { type: "idle" }
+        : { type: "error", tutorialId, message: response?.message ?? "The tutorial could not be replayed." });
+    } catch {
+      setReplay({ type: "error", tutorialId, message: "The extension background service is unavailable." });
+    }
   };
 
   const openOnshape = () => {
@@ -172,6 +229,52 @@ export function Popup() {
           </button>
         </form>
       )}
+
+      <section className="tutorial-library" aria-labelledby="saved-tutorials-title" aria-busy={libraryLoading}>
+        <div className="section-heading">
+          <h2 id="saved-tutorials-title">Your tutorials</h2>
+          {!libraryLoading && tutorials.length > 0 ? <span>{tutorials.length}</span> : null}
+        </div>
+        {libraryLoading ? (
+          <div className="library-skeleton" aria-label="Loading saved tutorials">
+            <span />
+            <span />
+          </div>
+        ) : tutorials.length === 0 ? (
+          <p className="empty-library">Analyzed tutorials will appear here, ready to replay.</p>
+        ) : (
+          <ul className="tutorial-list">
+            {tutorials.map((tutorial) => {
+              const isReplaying = replay.type === "loading" && replay.tutorialId === tutorial.tutorialId;
+              const replayError = replay.type === "error" && replay.tutorialId === tutorial.tutorialId
+                ? replay.message
+                : null;
+              return (
+                <li key={tutorial.tutorialId}>
+                  <div className="tutorial-details">
+                    <strong>{tutorial.title}</strong>
+                    <span>{sourceLabel(tutorial.videoUrl)} · {tutorial.plan.steps.length} {tutorial.plan.steps.length === 1 ? "step" : "steps"}</span>
+                    {replayError ? <small role="alert">{replayError}</small> : null}
+                  </div>
+                  <button
+                    className="replay-button"
+                    type="button"
+                    disabled={!isReady || replay.type === "loading"}
+                    onClick={() => void replayTutorial(tutorial.tutorialId)}
+                    aria-label={`Replay ${tutorial.title}`}
+                    title={isReady ? `Replay ${tutorial.title}` : "Open an Onshape document to replay"}
+                  >
+                    <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                      <path d="M7.2 5.5 14 10l-6.8 4.5Z" />
+                    </svg>
+                    {isReplaying ? "Starting…" : "Replay"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <footer>
         <span className="privacy-dot" aria-hidden="true" />

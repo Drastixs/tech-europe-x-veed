@@ -173,7 +173,13 @@ const failed = (
 const asHTMLElement = (element: PageElement) => element as HTMLElement;
 
 export const browserActionEnvironment: ActionEnvironment = {
-  elementFromPoint: ({ x, y }) => document.elementFromPoint(x, y) as PageElement | null,
+  elementFromPoint: ({ x, y }) => {
+    const hit = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!hit) return null;
+    return (hit.closest(
+      "button,[role='button'],input,textarea,select,[aria-label],[title],[data-tooltip]"
+    ) ?? hit) as PageElement;
+  },
   isOverlayElement: (element) => Boolean(asHTMLElement(element).closest?.("#onshape-assist-root")),
   click: (element, button) => {
     const htmlElement = asHTMLElement(element);

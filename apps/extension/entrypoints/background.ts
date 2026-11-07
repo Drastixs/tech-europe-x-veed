@@ -2,7 +2,10 @@ import { captureObservation } from "../src/computer-use/capture";
 import {
   isCaptureObservationCommand,
   isDemoEnvelope,
+  isExecuteActionCommand,
   isTutorialStepStatusCommand,
+  type ActionCompletedEvent,
+  type ExecuteActionCommand,
   type TutorialPlan,
   type TutorialStepStatusCommand
 } from "../src/overlay/protocol";
@@ -12,12 +15,195 @@ import {
   saveTutorial,
   tutorialTitle
 } from "../src/popup/tutorial-library";
+import { completedUndoCount } from "../src/computer-use/undo";
 
 const RELAY_URL = "ws://127.0.0.1:8000/ws/extension";
 const ONSHAPE_URL = "https://cad.onshape.com/documents/*";
 const KEEPALIVE_INTERVAL_MS = 20_000;
 const LEARNER_OBSERVATION_INTERVAL_MS = 1_000;
 const DEMONSTRATE_STEP_URL = "http://127.0.0.1:8000/computer-use/demonstrate-step";
+
+type CdpDebuggee = { tabId: number };
+type CdpApi = {
+  attach: (target: CdpDebuggee, version: string) => Promise<void>;
+  detach: (target: CdpDebuggee) => Promise<void>;
+  sendCommand: (
+    target: CdpDebuggee,
+    method: string,
+    parameters?: Record<string, unknown>
+  ) => Promise<unknown>;
+};
+
+const cdp = () => (globalThis as unknown as { chrome: { debugger: CdpApi } }).chrome.debugger;
+
+const isCdpPointerAction = (command: ExecuteActionCommand) =>
+  command.action.action_type === "click" ||
+  command.action.action_type === "double_click" ||
+  command.action.action_type === "selection";
+
+const executeCdpPointerAction = async (
+  tabId: number,
+  command: ExecuteActionCommand
+): Promise<ActionCompletedEvent> => {
+  const debuggee = { tabId };
+  const action = command.action;
+  const namedButton = action.action_type === "click" || action.action_type === "double_click"
+    ? action.parameters.button
+    : "primary";
+  const button = namedButton === "secondary" ? "right" : namedButton === "middle" ? "middle" : "left";
+  const clickTotal = action.action_type === "double_click" ? 2 : 1;
+
+  try {
+    await cdp().attach(debuggee, "1.3");
+    await cdp().sendCommand(debuggee, "Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: command.target.x,
+      y: command.target.y
+    });
+    for (let clickCount = 1; clickCount <= clickTotal; clickCount += 1) {
+      await cdp().sendCommand(debuggee, "Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: command.target.x,
+        y: command.target.y,
+        button,
+        buttons: button === "left" ? 1 : button === "right" ? 2 : 4,
+        clickCount
+      });
+      await cdp().sendCommand(debuggee, "Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: command.target.x,
+        y: command.target.y,
+        button,
+        buttons: 0,
+        clickCount
+      });
+      if (clickCount < clickTotal) {
+        const interval = action.action_type === "double_click" ? action.parameters.interval_ms : 0;
+        await new Promise((resolve) => setTimeout(resolve, interval));
+      }
+    }
+    return {
+      type: "action.completed",
+      action_id: command.action_id,
+      success: true,
+      reason: null,
+      element_description: `CDP click at (${command.target.x}, ${command.target.y})`
+    };
+  } catch (error) {
+    return {
+      type: "action.failed",
+      action_id: command.action_id,
+      success: false,
+      reason: error instanceof Error ? error.message : "CDP pointer execution failed",
+      element_description: null
+    };
+  } finally {
+    await cdp().detach(debuggee).catch(() => undefined);
+  }
+};
+
+const executeCdpUndo = async (tabId: number, count: number) => {
+  if (count <= 0) return;
+  const debuggee = { tabId };
+  try {
+    await cdp().attach(debuggee, "1.3");
+    for (let index = 0; index < count; index += 1) {
+      await cdp().sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "rawKeyDown",
+        key: "z",
+        code: "KeyZ",
+        windowsVirtualKeyCode: 90,
+        nativeVirtualKeyCode: 90,
+        modifiers: 2
+      });
+      await cdp().sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: "z",
+        code: "KeyZ",
+        windowsVirtualKeyCode: 90,
+        nativeVirtualKeyCode: 90,
+        modifiers: 2
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+  } finally {
+    await cdp().detach(debuggee).catch(() => undefined);
+  }
+};
+
+const dispatchCdpKey = async (
+  debuggee: CdpDebuggee,
+  key: string,
+  code: string,
+  virtualKeyCode: number,
+  modifiers = 0
+) => {
+  await cdp().sendCommand(debuggee, "Input.dispatchKeyEvent", {
+    type: "rawKeyDown",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKeyCode,
+    nativeVirtualKeyCode: virtualKeyCode,
+    modifiers
+  });
+  await cdp().sendCommand(debuggee, "Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKeyCode,
+    nativeVirtualKeyCode: virtualKeyCode,
+    modifiers
+  });
+};
+
+const executeCdpKeyboardAction = async (
+  tabId: number,
+  command: ExecuteActionCommand
+): Promise<ActionCompletedEvent> => {
+  const debuggee = { tabId };
+  const action = command.action;
+  try {
+    await cdp().attach(debuggee, "1.3");
+    if (action.action_type === "type") {
+      if (action.parameters.clear_existing) {
+        await dispatchCdpKey(debuggee, "a", "KeyA", 65, 2);
+        await dispatchCdpKey(debuggee, "Backspace", "Backspace", 8);
+      }
+      await cdp().sendCommand(debuggee, "Input.insertText", { text: action.parameters.text });
+      if (action.parameters.submit) {
+        await dispatchCdpKey(debuggee, "Enter", "Enter", 13);
+      }
+    } else if (action.action_type === "keypress") {
+      const modifierMask = action.parameters.modifiers.reduce((mask, modifier) =>
+        mask | (modifier === "alt" ? 1 : modifier === "control" ? 2 : modifier === "meta" ? 4 : 8), 0);
+      const key = action.parameters.key;
+      const code = key.length === 1 ? `Key${key.toUpperCase()}` : key;
+      const virtualKeyCode = key.length === 1 ? key.toUpperCase().charCodeAt(0) : key === "Enter" ? 13 : 0;
+      for (let index = 0; index < action.parameters.repeat; index += 1) {
+        await dispatchCdpKey(debuggee, key, code, virtualKeyCode, modifierMask);
+      }
+    } else {
+      throw new Error("Unsupported CDP keyboard action");
+    }
+    return {
+      type: "action.completed",
+      action_id: command.action_id,
+      success: true,
+      reason: null,
+      element_description: "Active Onshape keyboard target"
+    };
+  } catch (error) {
+    return {
+      type: "action.failed",
+      action_id: command.action_id,
+      success: false,
+      reason: error instanceof Error ? error.message : "CDP keyboard execution failed",
+      element_description: null
+    };
+  } finally {
+    await cdp().detach(debuggee).catch(() => undefined);
+  }
+};
 
 export default defineBackground(() => {
   let socket: WebSocket | null = null;
@@ -27,13 +213,16 @@ export default defineBackground(() => {
   let tutorialPlan: TutorialPlan | null = null;
   let tutorialStep = 1;
   let runtimeSession: TutorialStepStatusCommand | null = null;
+  const completedActionsByStep = new Map<string, number>();
   let observationTimer: ReturnType<typeof setInterval> | undefined;
   let observationPending = false;
   let stopped = false;
 
   const activeOnshapeTab = async () => {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true, url: ONSHAPE_URL });
-    return tab;
+    const tabs = await browser.tabs.query({ url: ONSHAPE_URL });
+    return tabs.find((tab) => tab.id === registeredTabId) ??
+      tabs.find((tab) => tab.active) ??
+      tabs[0];
   };
 
   const registerTab = async (tabId: number) => {
@@ -169,7 +358,12 @@ export default defineBackground(() => {
         const detail = await response.text();
         throw new Error(detail || `Step demonstration failed (${response.status})`);
       }
-      const result = await response.json() as { success?: boolean; reason?: string | null };
+      const result = await response.json() as {
+        success?: boolean;
+        reason?: string | null;
+        completed_actions?: number;
+      };
+      completedActionsByStep.set(plannedStep.step_id, result.completed_actions ?? 0);
       if (!result.success) throw new Error(result.reason || "Step demonstration failed");
 
       const visibleStatus: TutorialStepStatusCommand = {
@@ -218,6 +412,7 @@ export default defineBackground(() => {
           tutorialPlan = command.plan;
           tutorialStep = command.step ?? 1;
           runtimeSession = null;
+          completedActionsByStep.clear();
           stopLearnerMonitoring();
           void sendToRegisteredTab(command)
             .then(() => runTutorialStep(tutorialStep))
@@ -250,6 +445,41 @@ export default defineBackground(() => {
               }
             );
             sendExtensionEvent(captured, tab?.id);
+          })();
+          return;
+        }
+        if (isExecuteActionCommand(command) && isCdpPointerAction(command)) {
+          void (async () => {
+            const tab = await activeOnshapeTab();
+            const result = tab?.id === undefined
+              ? {
+                  type: "action.failed" as const,
+                  action_id: command.action_id,
+                  success: false,
+                  reason: "No active Onshape tab is available for CDP execution",
+                  element_description: null
+                }
+              : await executeCdpPointerAction(tab.id, command);
+            sendExtensionEvent(result, tab?.id);
+          })();
+          return;
+        }
+        if (
+          isExecuteActionCommand(command) &&
+          (command.action.action_type === "type" || command.action.action_type === "keypress")
+        ) {
+          void (async () => {
+            const tab = await activeOnshapeTab();
+            const result = tab?.id === undefined
+              ? {
+                  type: "action.failed" as const,
+                  action_id: command.action_id,
+                  success: false,
+                  reason: "No active Onshape tab is available for CDP keyboard execution",
+                  element_description: null
+                }
+              : await executeCdpKeyboardAction(tab.id, command);
+            sendExtensionEvent(result, tab?.id);
           })();
           return;
         }
@@ -310,6 +540,7 @@ export default defineBackground(() => {
         tutorialPlan = tutorial.plan;
         tutorialStep = 1;
         runtimeSession = null;
+        completedActionsByStep.clear();
         stopLearnerMonitoring();
         await sendToRegisteredTab({ type: "load_tutorial", plan: tutorial.plan, step: 1 });
         await runTutorialStep(1);
@@ -323,7 +554,22 @@ export default defineBackground(() => {
     if (candidate.type === "tab.ready") void registerTab(sender.tab.id);
     if (candidate.event) {
       const localEvent = candidate.event as { type?: string; step_id?: string };
-      if (localEvent.type === "tutorial.step.redo.requested") {
+      if (
+        localEvent.type === "tutorial.step.redo.requested"
+      ) {
+        return (async () => {
+          const step = tutorialPlan?.steps.find((candidate) => candidate.step_id === localEvent.step_id);
+          if (!step) throw new Error("The requested tutorial step does not exist");
+          const undoCount = completedUndoCount(
+            step,
+            completedActionsByStep.get(step.step_id) ?? 0
+          );
+          await executeCdpUndo(sender.tab!.id!, undoCount);
+          completedActionsByStep.set(step.step_id, 0);
+          await runTutorialStep(undefined, localEvent.step_id);
+        })();
+      }
+      if (localEvent.type === "tutorial.step.requested") {
         return runTutorialStep(undefined, localEvent.step_id);
       }
       if (localEvent.type === "user.takeover" && runtimeSession) {

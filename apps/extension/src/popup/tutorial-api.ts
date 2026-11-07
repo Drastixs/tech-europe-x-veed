@@ -1,7 +1,9 @@
+import { isDemoEnvelope, type TutorialPlan } from "../overlay/protocol";
+
 export const TUTORIAL_PIPELINE_URL = "http://127.0.0.1:8000/tutorials/from-video";
 
 export type TutorialCreationResult =
-  | { ok: true; tutorialId: string }
+  | { ok: true; tutorialId: string; plan: TutorialPlan }
   | { ok: false; message: string };
 
 const errorMessage = (value: unknown) => {
@@ -26,7 +28,13 @@ export async function createTutorialFromVideo(
     });
     const body: unknown = await response.json().catch(() => undefined);
     if (!response.ok) return { ok: false, message: errorMessage(body) };
-    return { ok: true, tutorialId };
+    if (!isDemoEnvelope(body) || body.command.type !== "load_tutorial") {
+      return { ok: false, message: "The tutorial pipeline returned an invalid tutorial plan." };
+    }
+    if (body.command.plan.tutorial_id !== tutorialId) {
+      return { ok: false, message: "The tutorial pipeline returned the wrong tutorial plan." };
+    }
+    return { ok: true, tutorialId, plan: body.command.plan };
   } catch {
     return {
       ok: false,
@@ -34,5 +42,3 @@ export async function createTutorialFromVideo(
     };
   }
 }
-
-

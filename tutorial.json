@@ -140,17 +140,19 @@
           },
           {
             "sequence": 4,
-            "action_type": "click",
+            "action_type": "keypress",
             "parameters": {
-              "button": "primary"
+              "key": "d",
+              "modifiers": [],
+              "repeat": 1
             },
-            "ui_region": "sketch toolbar",
-            "target_label": "Dimension",
-            "target_description": "The Sketch dimension tool in the sketch toolbar.",
-            "icon_description": "A dimension icon, often showing a diagonal measurement.",
-            "semantic_action": "Activate the dimension tool.",
+            "ui_region": "active sketch canvas",
+            "target_label": null,
+            "target_description": "The active Onshape sketch canvas; keep its current keyboard focus.",
+            "icon_description": null,
+            "semantic_action": "Press D to activate the Sketch dimension tool.",
             "expected_visible_result": "The cursor is ready to select sketch geometry for a dimension.",
-            "preferred_activation": "dom_js",
+            "preferred_activation": "cdp",
             "fallback_activation": "cdp"
           },
           {
@@ -331,32 +333,36 @@
           },
           {
             "sequence": 3,
-            "action_type": "click",
+            "action_type": "keypress",
             "parameters": {
-              "button": "primary"
+              "key": "l",
+              "modifiers": [],
+              "repeat": 1
             },
-            "ui_region": "sketch toolbar",
-            "target_label": "Construction",
-            "target_description": "The Construction toggle in the sketch toolbar.",
-            "icon_description": "A dashed-line construction icon.",
-            "semantic_action": "Enable construction geometry.",
-            "expected_visible_result": "Construction mode is active.",
-            "preferred_activation": "dom_js",
+            "ui_region": "active Front-plane sketch canvas",
+            "target_label": null,
+            "target_description": "The active Front-plane sketch canvas; keep its current keyboard focus.",
+            "icon_description": null,
+            "semantic_action": "Press L to activate the Line tool.",
+            "expected_visible_result": "The line tool awaits its first point.",
+            "preferred_activation": "cdp",
             "fallback_activation": "cdp"
           },
           {
             "sequence": 4,
-            "action_type": "click",
+            "action_type": "keypress",
             "parameters": {
-              "button": "primary"
+              "key": "q",
+              "modifiers": [],
+              "repeat": 1
             },
-            "ui_region": "sketch toolbar",
-            "target_label": "Line",
-            "target_description": "The Line tool in the sketch toolbar.",
-            "icon_description": "A diagonal line segment icon.",
-            "semantic_action": "Activate the line tool.",
-            "expected_visible_result": "The line tool awaits its first point.",
-            "preferred_activation": "dom_js",
+            "ui_region": "active Front-plane sketch canvas",
+            "target_label": null,
+            "target_description": "The active Front-plane sketch canvas with the Line tool selected; keep its current keyboard focus.",
+            "icon_description": null,
+            "semantic_action": "Press Q to toggle the active Line tool to construction geometry.",
+            "expected_visible_result": "The Line tool remains active in construction mode.",
+            "preferred_activation": "cdp",
             "fallback_activation": "cdp"
           },
           {

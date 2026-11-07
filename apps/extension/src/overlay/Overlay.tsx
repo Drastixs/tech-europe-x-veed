@@ -132,6 +132,23 @@ export function Overlay() {
     if (narration) void playerRef.current?.play(narration.fal_elevenlabs_audio_url);
   };
 
+  const navigateTutorial = (direction: "left" | "right") => {
+    const nextStep = direction === "right"
+      ? Math.min(state.steps.length, state.step + 1)
+      : Math.max(1, state.step - 1);
+    dispatch({ type: "navigate", direction });
+    const requested = state.steps[nextStep - 1];
+    if (!requested || nextStep === state.step || typeof browser === "undefined") return;
+    void browser.runtime.sendMessage({
+      channel: "onshape-assist",
+      event: createStepRequestedEvent(
+        state.plan?.tutorial_id ?? "tutorial",
+        requested.step_id,
+        nextStep
+      )
+    });
+  };
+
   const runtimeText = runtimeStatusText(state.runtimeStatus, state.runtimeMessage);
 
   const requestStepRedo = async () => {
@@ -181,7 +198,7 @@ export function Overlay() {
           ref={leftRef}
           className={state.activeDirection === "left" ? "is-active" : ""}
           type="button"
-          onClick={() => dispatch({ type: "navigate", direction: "left" })}
+          onClick={() => navigateTutorial("left")}
           disabled={navigationBlocked}
           aria-label="Previous step, left arrow"
         >
@@ -236,7 +253,7 @@ export function Overlay() {
           ref={rightRef}
           className={state.activeDirection === "right" ? "is-active" : ""}
           type="button"
-          onClick={() => dispatch({ type: "navigate", direction: "right" })}
+          onClick={() => navigateTutorial("right")}
           disabled={navigationBlocked}
           aria-label="Next step, right arrow"
         >
@@ -272,6 +289,21 @@ export function createStepRedoRequestedEvent(
 ) {
   return {
     type: "tutorial.step.redo.requested" as const,
+    tutorial_id: tutorialId,
+    step_id: stepId,
+    step_number: stepNumber,
+    timestamp_ms: timestampMs
+  };
+}
+
+export function createStepRequestedEvent(
+  tutorialId: string,
+  stepId: string,
+  stepNumber: number,
+  timestampMs = Date.now()
+) {
+  return {
+    type: "tutorial.step.requested" as const,
     tutorial_id: tutorialId,
     step_id: stepId,
     step_number: stepNumber,
